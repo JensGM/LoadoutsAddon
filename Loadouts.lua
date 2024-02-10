@@ -26,8 +26,11 @@ local function EquipEquipmentSet(setName)
 end
 
 -- Function to update equipment set by ID
-local function UpdateEquipmentSetById(loadout, itemArgs)
-    local function parseItem(itemString)
+local function UpdateEquipmentSetById(loadout, ...)
+    local itemArgs = {...}
+
+    local function parseItem(itemArgs)
+        local itemString = table.concat(itemArgs, " ")
         local pattern = "^([^:]*):?(.*)$"
         local fst, snd = itemString:match(pattern)
         local itemSlot, ItemName
@@ -70,6 +73,7 @@ local function UpdateEquipmentSetById(loadout, itemArgs)
             -- Add other mappings as needed
         }
 
+        local itemSlot, itemName = parseItem(itemArgs)
         local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
         if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
             Print("Unable to determine slot for '" .. itemName .. "'.", "ff0000")
@@ -140,26 +144,31 @@ end
 -- Slash commands for loadouts
 SLASH_LOADOUTS1 = "/loadouts"
 SlashCmdList["LOADOUTS"] = function(msg)
-    local args = {strsplit(" ", msg)}
-    local command, loadoutName = args[1], args[2]
+    local commands = {
+        ["set"] = {UpdateEquipmentSetById, "loadoutName (slotId:)?[item name]"},
+        ["equip"] = {EquipEquipmentSet, "loadoutName"},
+        ["show"] = {ShowEquipmentSets, ""},
+        ["new"] = {CreateEquipmentSet, "loadoutName"},
+        ["rm"] = {RemoveEquipmentSet, "loadoutName"},
+        ["clear"] = {ClearEquipmentSetSlot, "loadoutName slotId"},
+    }
 
-    if command == "set" and loadoutName then
-        local itemArgs = table.concat(args, " ", 3)
-        UpdateEquipmentSetById(loadoutName, itemArgs)
-    elseif command == "equip" and loadoutName then
-        EquipEquipmentSet(loadoutName)
-    elseif command == "show" then
-        ShowEquipmentSets()
-    elseif command == "new" and loadoutName then
-        CreateEquipmentSet(loadoutName)
-    elseif command == "rm" and loadoutName then
-        RemoveEquipmentSet(loadoutName)
-    elseif command == "clear" and loadoutName then
-        local slot = args[3]
-        ClearEquipmentSetSlot(loadoutName, slot)
-    else
-        Print("Invalid command or parameters. Use /loadouts for a list of commands.", "ffff00")
+    local args = {strsplit(" ", msg)}
+    local command = args[1]
+
+    if not command or commands[command] == nil then
+        Print("Available commands:", "ffff00")
+        for cmd, fns in pairs(commands) do
+            local _, help = unpack(fns)
+            Print("  /loadouts " .. cmd .. " " .. help, "ffffff")
+        end
+        return
     end
+
+    local fn, _ = unpack(commands[command])
+    -- debug pring the args
+    table.remove(args, 1)
+    fn(unpack(args))
 end
 
 -- Event handling for saving and loading settings
