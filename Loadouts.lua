@@ -58,11 +58,17 @@ local function ShowWeaponSets()
     Print("Weapon Sets:", "ffff00")
     for loadout, set in pairs(weaponSets) do
         Print(loadout .. ":", "ffff00")
-        Print("  mainHand: |Hitem:" .. set.mainHand .. "|h[" .. GetItemInfo(set.mainHand) .. "]|h", "ffffff")
-        Print("  offHand: |Hitem:" .. set.offHand .. "|h[" .. GetItemInfo(set.offHand) .. "]|h", "ffffff")
+
+        local mainHandLink = select(2, GetItemInfo(set.mainHand)) or "|cffffffff|Hitem:" .. set.mainHand .. "|h[Main Hand]|h|r"
+        local offHandLink = select(2, GetItemInfo(set.offHand)) or "|cffffffff|Hitem:" .. set.offHand .. "|h[Off Hand]|h|r"
+
+        -- Print item links with YAML-like layout
+        Print("  mainHand: " .. mainHandLink, "ffffff")
+        Print("  offHand: " .. offHandLink, "ffffff")
     end
 end
 
+-- Slash command for equipping a set
 SLASH_LOADOUTS1 = "/loadouts"
 SlashCmdList["LOADOUTS"] = function(msg)
     local args = { strsplit(" ", msg) }
