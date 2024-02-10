@@ -1,0 +1,6 @@
+## Interface: 11501
+## Title: Loadouts
+## Author: Jens
+## Version: 1.0
+## SavedVariables: Loadouts_SavedSets
+Loadouts.lua
