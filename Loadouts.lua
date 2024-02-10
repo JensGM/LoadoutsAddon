@@ -1,7 +1,5 @@
--- Loadouts
-
 local frame = CreateFrame("Frame", "LoadoutsFrame", UIParent)
-local weaponSets = {}
+local equipmentSets = {}
 
 -- Function to print messages
 local function Print(msg, color)
@@ -14,121 +12,137 @@ local function FormatItemLink(itemID)
     return itemLink
 end
 
--- Function to equip a weapon set
-local function EquipWeaponSet(setName)
-    local set = weaponSets[setName]
+-- Function to equip an equipment set
+local function EquipEquipmentSet(setName)
+    local set = equipmentSets[setName]
     if not set then
         Print("Loadout '" .. setName .. "' not recognized.", "ff0000")
         return
     end
-    if set.mainHand ~= 0 then
-        EquipItemByName(set.mainHand, 16) -- Main hand slot
-    end
-    if set.offHand ~= 0 then
-        EquipItemByName(set.offHand, 17) -- Off-hand slot
+    for slot, itemID in pairs(set) do
+        EquipItemByName(itemID, slot)
     end
     Print("Switched to " .. setName .. " set.", "00ff00")
 end
 
--- Function to update weapon set by ID
-local function UpdateWeaponSetById(loadout, slot, itemID)
-    if weaponSets[loadout] and (slot == "mainHand" or slot == "offHand") then
-        weaponSets[loadout][slot] = itemID
-        Print(loadout .. "." .. slot .. " set to " .. FormatItemLink(itemID) .. ".", "00ff00")
+-- Function to update equipment set by ID
+local function UpdateEquipmentSetById(loadout, slot, itemID)
+    if equipmentSets[loadout] then
+        equipmentSets[loadout][slot] = itemID
+        Print(loadout .. " " .. slot .. " set to " .. FormatItemLink(itemID) .. ".", "00ff00")
     else
-        Print("Invalid loadout or slot name.", "ff0000")
+        Print("Invalid loadout name.", "ff0000")
     end
 end
 
--- Function to update weapon set by name
-local function UpdateWeaponSetByName(loadout, slot, itemName)
-    local itemID = GetItemInfo(itemName)
-    if itemID then
-        UpdateWeaponSetById(loadout, slot, itemID)
+-- Function to clear equipment set slot
+local function ClearEquipmentSetSlot(loadout, slot)
+    if equipmentSets[loadout] and equipmentSets[loadout][slot] then
+        equipmentSets[loadout][slot] = nil
+        Print("Cleared " .. slot .. " from loadout '" .. loadout .. "'.", "00ff00")
     else
-        Print("Item '" .. itemName .. "' not found.", "ff0000")
+        Print("Invalid loadout name or slot not set.", "ff0000")
     end
 end
 
--- Function to show weapon sets
-local function ShowWeaponSets()
-    Print("Weapon Sets:", "ffff00")
-    for loadout, set in pairs(weaponSets) do
+-- Function to show equipment sets
+local function ShowEquipmentSets()
+    Print("Equipment Sets:", "ffff00")
+    for loadout, set in pairs(equipmentSets) do
         Print(loadout .. ":", "ffff00")
-
-        -- Update the code to use the helper function
-        local mainHandLink = FormatItemLink(set.mainHand)
-        local offHandLink = FormatItemLink(set.offHand)
-
-        -- Print item links with YAML-like layout
-        Print("  mainHand: " .. mainHandLink, "ffffff")
-        Print("  offHand: " .. offHandLink, "ffffff")
+        for slot, itemID in pairs(set) do
+            local itemLink = FormatItemLink(itemID)
+            Print("  " .. slot .. ": " .. itemLink, "ffffff")
+        end
     end
 end
 
--- Function to create a new weapon set
-local function CreateWeaponSet(setName)
-    if weaponSets[setName] then
+-- Function to create a new equipment set
+local function CreateEquipmentSet(setName)
+    if equipmentSets[setName] then
         Print("Loadout '" .. setName .. "' already exists.", "ff0000")
         return
     end
-    weaponSets[setName] = {
-        mainHand = 0,
-        offHand = 0
-    }
+    equipmentSets[setName] = {}
     Print("Loadout '" .. setName .. "' created.", "00ff00")
 end
 
--- Function to remove a weapon set
-local function RemoveWeaponSet(setName)
-    if not weaponSets[setName] then
+-- Function to remove an equipment set
+local function RemoveEquipmentSet(setName)
+    if not equipmentSets[setName] then
         Print("Loadout '" .. setName .. "' not found.", "ff0000")
         return
     end
-    weaponSets[setName] = nil
+    equipmentSets[setName] = nil
     Print("Loadout '" .. setName .. "' removed.", "00ff00")
 end
 
--- Slash command for loadouts
+-- Mapping from itemEquipLoc to inventory slot names
+local equipLocToSlotName = {
+    ["INVTYPE_HEAD"] = "HeadSlot",
+    ["INVTYPE_NECK"] = "NeckSlot",
+    ["INVTYPE_SHOULDER"] = "ShoulderSlot",
+    ["INVTYPE_CHEST"] = "ChestSlot",
+    ["INVTYPE_WAIST"] = "WaistSlot",
+    ["INVTYPE_LEGS"] = "LegsSlot",
+    ["INVTYPE_FEET"] = "FeetSlot",
+    ["INVTYPE_WRIST"] = "WristSlot",
+    ["INVTYPE_HAND"] = "HandsSlot",
+    ["INVTYPE_FINGER"] = "Finger0Slot", -- Note: There are two finger slots
+    ["INVTYPE_TRINKET"] = "Trinket0Slot", -- Note: There are two trinket slots
+    ["INVTYPE_CLOAK"] = "BackSlot",
+    ["INVTYPE_WEAPON"] = "MainHandSlot",
+    ["INVTYPE_SHIELD"] = "SecondaryHandSlot",
+    ["INVTYPE_2HWEAPON"] = "MainHandSlot",
+    ["INVTYPE_WEAPONMAINHAND"] = "MainHandSlot",
+    ["INVTYPE_WEAPONOFFHAND"] = "SecondaryHandSlot",
+    ["INVTYPE_HOLDABLE"] = "SecondaryHandSlot",
+    ["INVTYPE_RANGED"] = "MainHandSlot",
+    ["INVTYPE_THROWN"] = "MainHandSlot",
+    ["INVTYPE_RANGEDRIGHT"] = "MainHandSlot",
+    -- Add other mappings as needed
+}
+
+local function DetermineItemSlot(itemName)
+    local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
+    if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
+        Print("Unable to determine slot for '" .. itemName .. "'.", "ff0000")
+        return nil
+    end
+
+    local slotName = equipLocToSlotName[itemEquipLoc]
+    local slotNumberString = GetInventorySlotInfo(slotName)
+    local slotNumber = tonumber(slotNumberString)
+    return slotNumber -- This will return the slot number
+end
+
+
+-- Slash commands for loadouts
 SLASH_LOADOUTS1 = "/loadouts"
 SlashCmdList["LOADOUTS"] = function(msg)
-    local args = { strsplit(" ", msg) }
-    local command = args[1]
-    if command == "set" then
-        if args[2] and args[3] and args[4] then
-            local loadout, slot = strsplit(".", args[2])
-            local itemName = table.concat(args, " ", 3)
-            -- Check if the loadout and slot names are valid
-            if weaponSets[loadout] and (slot == "mainHand" or slot == "offHand") then
-                UpdateWeaponSetByName(loadout, slot, itemName)
-            else
-                Print("Invalid loadout or slot name.", "ff0000")
-            end
-        else
-            Print("Usage: /loadouts set [loadout].[mainHand|offHand] [item name]", "ff0000")
+    local args = {strsplit(" ", msg)}
+    local command, loadoutName = args[1], args[2]
+
+    if command == "set" and loadoutName then
+        local itemName = table.concat(args, " ", 3) -- Concatenate the remaining arguments for the item name
+        local itemSlot = DetermineItemSlot(itemName)
+
+        if itemSlot then
+            -- Assuming UpdateEquipmentSetById can handle the new itemSlot logic
+            UpdateEquipmentSetById(loadoutName, itemSlot, itemName) -- Adapt as needed
         end
-    elseif command == "equip" then
-        if args[2] then
-            EquipWeaponSet(args[2])
-        else
-            Print("Please specify a loadout name.", "ff0000")
-        end
+    elseif command == "equip" and loadoutName then
+        EquipEquipmentSet(loadoutName)
     elseif command == "show" then
-        ShowWeaponSets()
-    elseif command == "new" then
-        if args[2] then
-            CreateWeaponSet(args[2])
-        else
-            Print("Please specify a loadout name.", "ff0000")
-        end
-    elseif command == "rm" then
-        if args[2] then
-            RemoveWeaponSet(args[2])
-        else
-            Print("Please specify a loadout name.", "ff0000")
-        end
+        ShowEquipmentSets()
+    elseif command == "new" and loadoutName then
+        CreateEquipmentSet(loadoutName)
+    elseif command == "rm" and loadoutName then
+        RemoveEquipmentSet(loadoutName)
+    elseif command == "clear" and loadoutName then
+        -- Implementation for clear command goes here
     else
-        Print("Commands:\n- /loadouts set [loadout].[mainHand|offHand] [item name]\n- /loadouts equip [loadout]\n- /loadouts show\n- /loadouts new [loadout]\n- /loadouts rm [loadout]", "ffff00")
+        Print("Invalid command or parameters. Use /loadouts for a list of commands.", "ffff00")
     end
 end
 
@@ -137,14 +151,14 @@ frame:RegisterEvent("PLAYER_LOGOUT")
 frame:RegisterEvent("ADDON_LOADED")
 frame:SetScript("OnEvent", function(self, event, arg1, ...)
     if event == "ADDON_LOADED" and arg1 == "Loadouts" then
-        -- Load saved variables into weaponSets or initialize if not present
+        -- Load saved variables into equipmentSets or initialize if not present
         if Loadouts_SavedSets then
-            weaponSets = Loadouts_SavedSets
+            equipmentSets = Loadouts_SavedSets
             Print("Loadout settings loaded.", "00ff00")
         end
     elseif event == "PLAYER_LOGOUT" then
-        -- Save the weaponSets to saved variables
-        Loadouts_SavedSets = weaponSets
+        -- Save the equipmentSets to saved variables
+        Loadouts_SavedSets = equipmentSets
     end
 end)
 
