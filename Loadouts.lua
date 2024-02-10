@@ -17,6 +17,12 @@ local function Print(msg, color)
     DEFAULT_CHAT_FRAME:AddMessage("|cff" .. color .. "Loadouts:|r " .. msg)
 end
 
+-- Helper function to format item links
+local function FormatItemLink(itemID)
+    local itemLink = select(2, GetItemInfo(itemID)) or "|cffffffff|Hitem:" .. itemID .. "|h[Unknown Item]|h|r"
+    return itemLink
+end
+
 -- Function to equip a weapon set
 local function EquipWeaponSet(setName)
     local set = weaponSets[setName]
@@ -37,7 +43,7 @@ end
 local function UpdateWeaponSetById(loadout, slot, itemID)
     if weaponSets[loadout] and (slot == "mainHand" or slot == "offHand") then
         weaponSets[loadout][slot] = itemID
-        Print(loadout .. "." .. slot .. " set to item ID " .. itemID .. ".", "00ff00")
+        Print(loadout .. "." .. slot .. " set to " .. FormatItemLink(itemID) .. ".", "00ff00")
     else
         Print("Invalid loadout or slot name.", "ff0000")
     end
@@ -59,8 +65,9 @@ local function ShowWeaponSets()
     for loadout, set in pairs(weaponSets) do
         Print(loadout .. ":", "ffff00")
 
-        local mainHandLink = select(2, GetItemInfo(set.mainHand)) or "|cffffffff|Hitem:" .. set.mainHand .. "|h[Main Hand]|h|r"
-        local offHandLink = select(2, GetItemInfo(set.offHand)) or "|cffffffff|Hitem:" .. set.offHand .. "|h[Off Hand]|h|r"
+        -- Update the code to use the helper function
+        local mainHandLink = FormatItemLink(set.mainHand)
+        local offHandLink = FormatItemLink(set.offHand)
 
         -- Print item links with YAML-like layout
         Print("  mainHand: " .. mainHandLink, "ffffff")
@@ -77,8 +84,6 @@ SlashCmdList["LOADOUTS"] = function(msg)
         if args[2] and args[3] and args[4] then
             local loadout, slot = strsplit(".", args[2])
             local itemName = table.concat(args, " ", 3)
-            -- debug print
-            Print("loadout: " .. loadout .. ", slot: " .. slot .. ", itemName: " .. itemName, "00ff00")
             -- Check if the loadout and slot names are valid
             if weaponSets[loadout] and (slot == "mainHand" or slot == "offHand") then
                 UpdateWeaponSetByName(loadout, slot, itemName)
