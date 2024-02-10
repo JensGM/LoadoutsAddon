@@ -1,16 +1,7 @@
 -- Loadouts
 
 local frame = CreateFrame("Frame", "LoadoutsFrame", UIParent)
-local weaponSets = {
-    offensive = {
-        mainHand = 0,
-        offHand = 0
-    },
-    defensive = {
-        mainHand = 0,
-        offHand = 0
-    }
-}
+local weaponSets = {}
 
 -- Function to print messages
 local function Print(msg, color)
@@ -75,7 +66,30 @@ local function ShowWeaponSets()
     end
 end
 
--- Slash command for equipping a set
+-- Function to create a new weapon set
+local function CreateWeaponSet(setName)
+    if weaponSets[setName] then
+        Print("Loadout '" .. setName .. "' already exists.", "ff0000")
+        return
+    end
+    weaponSets[setName] = {
+        mainHand = 0,
+        offHand = 0
+    }
+    Print("Loadout '" .. setName .. "' created.", "00ff00")
+end
+
+-- Function to remove a weapon set
+local function RemoveWeaponSet(setName)
+    if not weaponSets[setName] then
+        Print("Loadout '" .. setName .. "' not found.", "ff0000")
+        return
+    end
+    weaponSets[setName] = nil
+    Print("Loadout '" .. setName .. "' removed.", "00ff00")
+end
+
+-- Slash command for loadouts
 SLASH_LOADOUTS1 = "/loadouts"
 SlashCmdList["LOADOUTS"] = function(msg)
     local args = { strsplit(" ", msg) }
@@ -101,8 +115,20 @@ SlashCmdList["LOADOUTS"] = function(msg)
         end
     elseif command == "show" then
         ShowWeaponSets()
+    elseif command == "new" then
+        if args[2] then
+            CreateWeaponSet(args[2])
+        else
+            Print("Please specify a loadout name.", "ff0000")
+        end
+    elseif command == "rm" then
+        if args[2] then
+            RemoveWeaponSet(args[2])
+        else
+            Print("Please specify a loadout name.", "ff0000")
+        end
     else
-        Print("Commands:\n- /loadouts set [offensive|defensive].[mainHand|offHand] [item name]\n- /loadouts equip [offensive|defensive]\n- /loadouts show", "ffff00")
+        Print("Commands:\n- /loadouts set [loadout].[mainHand|offHand] [item name]\n- /loadouts equip [loadout]\n- /loadouts show\n- /loadouts new [loadout]\n- /loadouts rm [loadout]", "ffff00")
     end
 end
 
