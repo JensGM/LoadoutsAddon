@@ -26,10 +26,70 @@ local function EquipEquipmentSet(setName)
 end
 
 -- Function to update equipment set by ID
-local function UpdateEquipmentSetById(loadout, slot, itemID)
+local function UpdateEquipmentSetById(loadout, itemArgs)
+    local function parseItem(itemString)
+        local pattern = "^([^:]*):?(.*)$"
+        local fst, snd = itemString:match(pattern)
+        local itemSlot, ItemName
+
+        if snd ~= "" then
+            itemSlot = fst
+            itemName = snd
+        else
+            itemName = itemString
+        end
+
+        local itemNameTrimmed = itemName:gsub("^%[?(.-)%]?$", "%1")
+        return itemSlot, itemNameTrimmed
+    end
+
+    local function DetermineItemSlot(itemName)
+        -- Mapping from itemEquipLoc to inventory slot names
+        local equipLocToSlotName = {
+            ["INVTYPE_HEAD"] = "HeadSlot",
+            ["INVTYPE_NECK"] = "NeckSlot",
+            ["INVTYPE_SHOULDER"] = "ShoulderSlot",
+            ["INVTYPE_CHEST"] = "ChestSlot",
+            ["INVTYPE_WAIST"] = "WaistSlot",
+            ["INVTYPE_LEGS"] = "LegsSlot",
+            ["INVTYPE_FEET"] = "FeetSlot",
+            ["INVTYPE_WRIST"] = "WristSlot",
+            ["INVTYPE_HAND"] = "HandsSlot",
+            ["INVTYPE_FINGER"] = "Finger0Slot", -- Note: There are two finger slots
+            ["INVTYPE_TRINKET"] = "Trinket0Slot", -- Note: There are two trinket slots
+            ["INVTYPE_CLOAK"] = "BackSlot",
+            ["INVTYPE_WEAPON"] = "MainHandSlot",
+            ["INVTYPE_SHIELD"] = "SecondaryHandSlot",
+            ["INVTYPE_2HWEAPON"] = "MainHandSlot",
+            ["INVTYPE_WEAPONMAINHAND"] = "MainHandSlot",
+            ["INVTYPE_WEAPONOFFHAND"] = "SecondaryHandSlot",
+            ["INVTYPE_HOLDABLE"] = "SecondaryHandSlot",
+            ["INVTYPE_RANGED"] = "MainHandSlot",
+            ["INVTYPE_THROWN"] = "MainHandSlot",
+            ["INVTYPE_RANGEDRIGHT"] = "MainHandSlot",
+            -- Add other mappings as needed
+        }
+
+        local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
+        if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
+            Print("Unable to determine slot for '" .. itemName .. "'.", "ff0000")
+            return nil
+        end
+
+        local slotName = equipLocToSlotName[itemEquipLoc]
+        local slotNumberString = GetInventorySlotInfo(slotName)
+        local slotNumber = tonumber(slotNumberString)
+        return slotNumber -- This will return the slot number
+    end
+
+    local itemSlot, itemName = parseItem(itemArgs)
+    if not itemSlot then
+        itemSlot = DetermineItemSlot(itemName)
+    end
+
     if equipmentSets[loadout] then
-        equipmentSets[loadout][slot] = itemID
-        Print(loadout .. " " .. slot .. " set to " .. FormatItemLink(itemID) .. ".", "00ff00")
+        equipmentSets[loadout][itemSlot] = itemName
+        Print(loadout .. " " .. itemSlot .. " set to " .. FormatItemLink(itemName) .. ".", "00ff00")
     else
         Print("Invalid loadout name.", "ff0000")
     end
@@ -77,46 +137,6 @@ local function RemoveEquipmentSet(setName)
     Print("Loadout '" .. setName .. "' removed.", "00ff00")
 end
 
--- Mapping from itemEquipLoc to inventory slot names
-local equipLocToSlotName = {
-    ["INVTYPE_HEAD"] = "HeadSlot",
-    ["INVTYPE_NECK"] = "NeckSlot",
-    ["INVTYPE_SHOULDER"] = "ShoulderSlot",
-    ["INVTYPE_CHEST"] = "ChestSlot",
-    ["INVTYPE_WAIST"] = "WaistSlot",
-    ["INVTYPE_LEGS"] = "LegsSlot",
-    ["INVTYPE_FEET"] = "FeetSlot",
-    ["INVTYPE_WRIST"] = "WristSlot",
-    ["INVTYPE_HAND"] = "HandsSlot",
-    ["INVTYPE_FINGER"] = "Finger0Slot", -- Note: There are two finger slots
-    ["INVTYPE_TRINKET"] = "Trinket0Slot", -- Note: There are two trinket slots
-    ["INVTYPE_CLOAK"] = "BackSlot",
-    ["INVTYPE_WEAPON"] = "MainHandSlot",
-    ["INVTYPE_SHIELD"] = "SecondaryHandSlot",
-    ["INVTYPE_2HWEAPON"] = "MainHandSlot",
-    ["INVTYPE_WEAPONMAINHAND"] = "MainHandSlot",
-    ["INVTYPE_WEAPONOFFHAND"] = "SecondaryHandSlot",
-    ["INVTYPE_HOLDABLE"] = "SecondaryHandSlot",
-    ["INVTYPE_RANGED"] = "MainHandSlot",
-    ["INVTYPE_THROWN"] = "MainHandSlot",
-    ["INVTYPE_RANGEDRIGHT"] = "MainHandSlot",
-    -- Add other mappings as needed
-}
-
-local function DetermineItemSlot(itemName)
-    local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
-    if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
-        Print("Unable to determine slot for '" .. itemName .. "'.", "ff0000")
-        return nil
-    end
-
-    local slotName = equipLocToSlotName[itemEquipLoc]
-    local slotNumberString = GetInventorySlotInfo(slotName)
-    local slotNumber = tonumber(slotNumberString)
-    return slotNumber -- This will return the slot number
-end
-
-
 -- Slash commands for loadouts
 SLASH_LOADOUTS1 = "/loadouts"
 SlashCmdList["LOADOUTS"] = function(msg)
@@ -124,13 +144,8 @@ SlashCmdList["LOADOUTS"] = function(msg)
     local command, loadoutName = args[1], args[2]
 
     if command == "set" and loadoutName then
-        local itemName = table.concat(args, " ", 3) -- Concatenate the remaining arguments for the item name
-        local itemSlot = DetermineItemSlot(itemName)
-
-        if itemSlot then
-            -- Assuming UpdateEquipmentSetById can handle the new itemSlot logic
-            UpdateEquipmentSetById(loadoutName, itemSlot, itemName) -- Adapt as needed
-        end
+        local itemArgs = table.concat(args, " ", 3)
+        UpdateEquipmentSetById(loadoutName, itemArgs)
     elseif command == "equip" and loadoutName then
         EquipEquipmentSet(loadoutName)
     elseif command == "show" then
@@ -140,7 +155,8 @@ SlashCmdList["LOADOUTS"] = function(msg)
     elseif command == "rm" and loadoutName then
         RemoveEquipmentSet(loadoutName)
     elseif command == "clear" and loadoutName then
-        -- Implementation for clear command goes here
+        local slot = args[3]
+        ClearEquipmentSetSlot(loadoutName, slot)
     else
         Print("Invalid command or parameters. Use /loadouts for a list of commands.", "ffff00")
     end
