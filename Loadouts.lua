@@ -2,38 +2,38 @@ local frame = CreateFrame("Frame", "LoadoutsFrame", UIParent)
 local equipmentSets = {}
 
 -- Function to print messages
-local function Print(msg, color)
+local function printMessage(msg, color)
     DEFAULT_CHAT_FRAME:AddMessage("|cff" .. color .. "Loadouts:|r " .. msg)
 end
 
 -- Helper function to format item links
-local function FormatItemLink(itemID)
-    local itemLink = select(2, GetItemInfo(itemID)) or "|cffffffff|Hitem:" .. itemID .. "|h[Unknown Item]|h|r"
+local function formatItemLink(itemId)
+    local itemLink = select(2, GetItemInfo(itemId)) or "|cffffffff|Hitem:" .. itemId .. "|h[Unknown Item]|h|r"
     return itemLink
 end
 
 -- Function to equip an equipment set
-local function EquipEquipmentSet(setName)
+local function equipEquipmentSet(setName)
     local set = equipmentSets[setName]
     if not set then
-        Print("Loadout '" .. setName .. "' not recognized.", "ff0000")
+        printMessage("Loadout '" .. setName .. "' not recognized.", "ff0000")
         return
     end
-    for slot, itemID in pairs(set) do
-        EquipItemByName(itemID, slot)
+    for slot, itemId in pairs(set) do
+        EquipItemByName(itemId, slot)
     end
-    Print("Switched to " .. setName .. " set.", "00ff00")
+    printMessage("Switched to " .. setName .. " set.", "00ff00")
 end
 
 -- Function to update equipment set by ID
-local function UpdateEquipmentSetById(loadout, ...)
+local function updateEquipmentSetById(loadout, ...)
     local itemArgs = {...}
 
     local function parseItem(itemArgs)
         local itemString = table.concat(itemArgs, " ")
         local pattern = "^([^:]*):?(.*)$"
         local fst, snd = itemString:match(pattern)
-        local itemSlot, ItemName
+        local itemSlot, itemName
 
         if snd ~= "" then
             itemSlot = fst
@@ -46,8 +46,7 @@ local function UpdateEquipmentSetById(loadout, ...)
         return itemSlot, itemNameTrimmed
     end
 
-    local function DetermineItemSlot(itemName)
-        -- Mapping from itemEquipLoc to inventory slot names
+    local function determineItemSlot(itemName)
         local equipLocToSlotName = {
             ["INVTYPE_HEAD"] = "HeadSlot",
             ["INVTYPE_NECK"] = "NeckSlot",
@@ -58,8 +57,8 @@ local function UpdateEquipmentSetById(loadout, ...)
             ["INVTYPE_FEET"] = "FeetSlot",
             ["INVTYPE_WRIST"] = "WristSlot",
             ["INVTYPE_HAND"] = "HandsSlot",
-            ["INVTYPE_FINGER"] = "Finger0Slot", -- Note: There are two finger slots
-            ["INVTYPE_TRINKET"] = "Trinket0Slot", -- Note: There are two trinket slots
+            ["INVTYPE_FINGER"] = "Finger0Slot",
+            ["INVTYPE_TRINKET"] = "Trinket0Slot",
             ["INVTYPE_CLOAK"] = "BackSlot",
             ["INVTYPE_WEAPON"] = "MainHandSlot",
             ["INVTYPE_SHIELD"] = "SecondaryHandSlot",
@@ -70,103 +69,101 @@ local function UpdateEquipmentSetById(loadout, ...)
             ["INVTYPE_RANGED"] = "MainHandSlot",
             ["INVTYPE_THROWN"] = "MainHandSlot",
             ["INVTYPE_RANGEDRIGHT"] = "MainHandSlot",
-            -- Add other mappings as needed
         }
 
         local itemSlot, itemName = parseItem(itemArgs)
         local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
         if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
-            Print("Unable to determine slot for '" .. itemName .. "'.", "ff0000")
+            printMessage("Unable to determine slot for '" .. itemName .. "'.", "ff0000")
             return nil
         end
 
         local slotName = equipLocToSlotName[itemEquipLoc]
         local slotNumberString = GetInventorySlotInfo(slotName)
         local slotNumber = tonumber(slotNumberString)
-        return slotNumber -- This will return the slot number
+        return slotNumber
     end
 
     local itemSlot, itemName = parseItem(itemArgs)
     if not itemSlot then
-        itemSlot = DetermineItemSlot(itemName)
+        itemSlot = determineItemSlot(itemName)
     end
 
     if equipmentSets[loadout] then
         equipmentSets[loadout][itemSlot] = itemName
-        Print(loadout .. " " .. itemSlot .. " set to " .. FormatItemLink(itemName) .. ".", "00ff00")
+        printMessage(loadout .. " " .. itemSlot .. " set to " .. formatItemLink(itemName) .. ".", "00ff00")
     else
-        Print("Invalid loadout name.", "ff0000")
+        printMessage("Invalid loadout name.", "ff0000")
     end
 end
 
 -- Function to clear equipment set slot
-local function ClearEquipmentSetSlot(loadout, slot)
+local function clearEquipmentSetSlot(loadout, slot)
     if equipmentSets[loadout] and equipmentSets[loadout][slot] then
         equipmentSets[loadout][slot] = nil
-        Print("Cleared " .. slot .. " from loadout '" .. loadout .. "'.", "00ff00")
+        printMessage("Cleared " .. slot .. " from loadout '" .. loadout .. "'.", "00ff00")
     else
-        Print("Invalid loadout name or slot not set.", "ff0000")
+        printMessage("Invalid loadout name or slot not set.", "ff0000")
     end
 end
 
 -- Function to show equipment sets
-local function ShowEquipmentSets()
-    Print("Equipment Sets:", "ffff00")
+local function showEquipmentSets()
+    printMessage("Equipment Sets:", "ffff00")
     for loadout, set in pairs(equipmentSets) do
-        Print(loadout .. ":", "ffff00")
-        for slot, itemID in pairs(set) do
-            local itemLink = FormatItemLink(itemID)
-            Print("  " .. slot .. ": " .. itemLink, "ffffff")
+        printMessage(loadout .. ":", "ffff00")
+        for slot, itemId in pairs(set) do
+            local itemLink = formatItemLink(itemId)
+            printMessage("  " .. slot .. ": " .. itemLink, "ffffff")
         end
     end
 end
 
 -- Function to create a new equipment set
-local function CreateEquipmentSet(setName)
+local function createEquipmentSet(setName)
     if equipmentSets[setName] then
-        Print("Loadout '" .. setName .. "' already exists.", "ff0000")
+        printMessage("Loadout '" .. setName .. "' already exists.", "ff0000")
         return
     end
     equipmentSets[setName] = {}
-    Print("Loadout '" .. setName .. "' created.", "00ff00")
+    printMessage("Loadout '" .. setName .. "' created.", "00ff00")
 end
 
 -- Function to remove an equipment set
-local function RemoveEquipmentSet(setName)
+local function removeEquipmentSet(setName)
     if not equipmentSets[setName] then
-        Print("Loadout '" .. setName .. "' not found.", "ff0000")
+        printMessage("Loadout '" .. setName .. "' not found.", "ff0000")
         return
     end
     equipmentSets[setName] = nil
-    Print("Loadout '" .. setName .. "' removed.", "00ff00")
+    printMessage("Loadout '" .. setName .. "' removed.", "00ff00")
 end
 
 -- Slash commands for loadouts
 SLASH_LOADOUTS1 = "/loadouts"
 SlashCmdList["LOADOUTS"] = function(msg)
     local commands = {
-        ["set"] = {UpdateEquipmentSetById, "loadoutName (slotId:)?[item name]"},
-        ["equip"] = {EquipEquipmentSet, "loadoutName"},
-        ["show"] = {ShowEquipmentSets, ""},
-        ["new"] = {CreateEquipmentSet, "loadoutName"},
-        ["rm"] = {RemoveEquipmentSet, "loadoutName"},
-        ["clear"] = {ClearEquipmentSetSlot, "loadoutName slotId"},
+        ["set"] = {updateEquipmentSetById, "loadoutName (slotId:)?[item name]"},
+        ["equip"] = {equipEquipmentSet, "loadoutName"},
+        ["show"] = {showEquipmentSets, ""},
+        ["new"] = {createEquipmentSet, "loadoutName"},
+        ["rm"] = {removeEquipmentSet, "loadoutName"},
+        ["clear"] = {clearEquipmentSetSlot, "loadoutName slotId"},
     }
 
     local args = {strsplit(" ", msg)}
     local command = args[1]
 
     if not command or commands[command] == nil then
-        Print("Available commands:", "ffff00")
+        printMessage("Available commands:", "ffff00")
         for cmd, fns in pairs(commands) do
             local _, help = unpack(fns)
-            Print("  /loadouts " .. cmd .. " " .. help, "ffffff")
+            printMessage("  /loadouts " .. cmd .. " " .. help, "ffffff")
         end
         return
     end
 
     local fn, _ = unpack(commands[command])
-    -- debug pring the args
     table.remove(args, 1)
     fn(unpack(args))
 end
@@ -176,15 +173,13 @@ frame:RegisterEvent("PLAYER_LOGOUT")
 frame:RegisterEvent("ADDON_LOADED")
 frame:SetScript("OnEvent", function(self, event, arg1, ...)
     if event == "ADDON_LOADED" and arg1 == "Loadouts" then
-        -- Load saved variables into equipmentSets or initialize if not present
         if Loadouts_SavedSets then
             equipmentSets = Loadouts_SavedSets
-            Print("Loadout settings loaded.", "00ff00")
+            printMessage("Loadout settings loaded.", "00ff00")
         end
     elseif event == "PLAYER_LOGOUT" then
-        -- Save the equipmentSets to saved variables
         Loadouts_SavedSets = equipmentSets
     end
 end)
 
-Print("Addon loaded. Use /loadouts for commands.", "00ff00")
+printMessage("Addon loaded. Use /loadouts for commands.", "00ff00")
