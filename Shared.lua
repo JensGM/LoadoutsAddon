@@ -1,0 +1,1 @@
+Loadouts = Loadouts or {}

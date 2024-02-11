@@ -3,4 +3,6 @@
 ## Author: Jens
 ## Version: 1.0
 ## SavedVariables: Loadouts_SavedSets
+Shared.lua
+Logger.lua
 Loadouts.lua

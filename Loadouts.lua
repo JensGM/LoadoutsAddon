@@ -1,9 +1,15 @@
 local frame = CreateFrame("Frame", "LoadoutsFrame", UIParent)
 local equipmentSets = {}
 
--- Function to print messages
-local function printMessage(msg, color)
-    DEFAULT_CHAT_FRAME:AddMessage("|cff" .. color .. "Loadouts:|r " .. msg)
+local logger = Loadouts.Logger:new()
+local t = {}
+t.slot = logger:token("slot", Loadouts.lightBlue)
+t.loadout = logger:token("loadout", Loadouts.teal)
+t.cmd = logger:token("cmd", Loadouts.teal)
+t.args = logger:token("args", Loadouts.lightBlue)
+
+local function log(log_level)
+    return logger:log(log_level)
 end
 
 -- Helper function to format item links
@@ -16,13 +22,21 @@ end
 local function equipEquipmentSet(setName)
     local set = equipmentSets[setName]
     if not set then
-        printMessage("Loadout '" .. setName .. "' not recognized.", "ff0000")
+        log("error")
+            :print("Loadout ")
+            :print(setName):as(t.loadout)
+            :print(" not recognized.")
+            :flush()
         return
     end
     for slot, itemId in pairs(set) do
         EquipItemByName(itemId, slot)
     end
-    printMessage("Switched to " .. setName .. " set.", "00ff00")
+    log("debug")
+        :print("Switched to ")
+        :print(setName):as(t.loadout)
+        :print(" set.")
+        :flush()
 end
 
 -- Function to update equipment set by ID
@@ -74,7 +88,10 @@ local function updateEquipmentSetById(loadout, ...)
         local itemSlot, itemName = parseItem(itemArgs)
         local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
         if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
-            printMessage("Unable to determine slot for '" .. itemName .. "'.", "ff0000")
+            log("error")
+                :print("Unable to determine slot for ")
+                :print(itemName)
+                :flush()
             return nil
         end
 
@@ -91,9 +108,18 @@ local function updateEquipmentSetById(loadout, ...)
 
     if equipmentSets[loadout] then
         equipmentSets[loadout][itemSlot] = itemName
-        printMessage(loadout .. " " .. itemSlot .. " set to " .. formatItemLink(itemName) .. ".", "00ff00")
+        local itemLink = formatItemLink(itemName)
+        logger:log("info")
+            :print(loadout):as(t.loadout)
+            :print(" ", itemSlot)
+            :print(" set to ")
+            :print(itemLink)
+            :flush()
     else
-        printMessage("Invalid loadout name.", "ff0000")
+        logger:log("error")
+            :print("Invalid loadout name: ")
+            :print(loadout):as(t.slot)
+            :flush()
     end
 end
 
@@ -101,22 +127,31 @@ end
 local function clearEquipmentSetSlot(loadout, slot)
     if equipmentSets[loadout] and equipmentSets[loadout][slot] then
         equipmentSets[loadout][slot] = nil
-        printMessage("Cleared " .. slot .. " from loadout '" .. loadout .. "'.", "00ff00")
+        log("info")
+            :print("Cleared "):print(slot)
+            :print(" from "):print(loadout):as(t.slot)
+            :flush()
     else
-        printMessage("Invalid loadout name or slot not set.", "ff0000")
+        log("error"):print("Invalid loadout name or slot not set."):flush()
     end
 end
 
 -- Function to show equipment sets
 local function showEquipmentSets()
-    printMessage("Equipment Sets:", "ffff00")
+    local l = log("always")
+        :println("Equipment Sets:")
+        :indent()
     for loadout, set in pairs(equipmentSets) do
-        printMessage(loadout .. ":", "ffff00")
+        l:print(loadout):as(t.loadout):println(":"):indent()
         for slot, itemId in pairs(set) do
-            local itemLink = formatItemLink(itemId)
-            printMessage("  " .. slot .. ": " .. itemLink, "ffffff")
+            l:print(slot):as(t.slot)
+                :print(": ")
+                :print(formatItemLink(itemId))
+                :newline()
         end
+        l:popIndent()
     end
+    l:flush()
 end
 
 -- Function to create a new equipment set
@@ -139,6 +174,18 @@ local function removeEquipmentSet(setName)
     printMessage("Loadout '" .. setName .. "' removed.", "00ff00")
 end
 
+local function printColors()
+    local l = log("info")
+        :println("Available colors:")
+        :indent()
+    for colorName, colorCode in pairs(Loadouts.colorScheme) do
+        l = l:print(colorName, ": ")
+            :println(colorCode)
+            :rgb(colorCode)
+    end
+    l:flush()
+end
+
 -- Slash commands for loadouts
 SLASH_LOADOUTS1 = "/loadouts"
 SlashCmdList["LOADOUTS"] = function(msg)
@@ -149,17 +196,27 @@ SlashCmdList["LOADOUTS"] = function(msg)
         ["new"] = {createEquipmentSet, "loadoutName"},
         ["rm"] = {removeEquipmentSet, "loadoutName"},
         ["clear"] = {clearEquipmentSetSlot, "loadoutName slotId"},
+        ["_colors"] = {printColors, nil},
     }
 
     local args = {strsplit(" ", msg)}
     local command = args[1]
 
     if not command or commands[command] == nil then
-        printMessage("Available commands:", "ffff00")
+        local l = log("info")
+            :println("Available commands:")
+            :indent()
         for cmd, fns in pairs(commands) do
             local _, help = unpack(fns)
-            printMessage("  /loadouts " .. cmd .. " " .. help, "ffffff")
+            if help then
+                l = l:print("/loadouts ")
+                    :print(cmd):as(t.cmd)
+                    :print(" ")
+                    :println(help)
+                    :as(t.args)
+            end
         end
+        l:flush()
         return
     end
 
@@ -175,11 +232,11 @@ frame:SetScript("OnEvent", function(self, event, arg1, ...)
     if event == "ADDON_LOADED" and arg1 == "Loadouts" then
         if Loadouts_SavedSets then
             equipmentSets = Loadouts_SavedSets
-            printMessage("Loadout settings loaded.", "00ff00")
+            log("info"):print("Loadout settings loaded."):flush()
         end
     elseif event == "PLAYER_LOGOUT" then
         Loadouts_SavedSets = equipmentSets
     end
 end)
 
-printMessage("Addon loaded. Use /loadouts for commands.", "00ff00")
+log("info"):print("Loadouts loaded, use /loadouts for commands."):flush()
