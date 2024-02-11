@@ -267,7 +267,10 @@ local function findMacrosContainingSets()
         local name, _, body = GetMacroInfo(i)
         local setName = body and body:match(macro_pattern)
         if setName then
-            macros[name] = {
+            if not macros[setName] then
+                macros[setName] = {}
+            end
+            macros[setName][name] = {
                 name = name,
                 index = i,
                 setName = setName,
@@ -276,6 +279,36 @@ local function findMacrosContainingSets()
         end
     end
     return macros
+end
+
+local function renameEquipmentSet(oldName, newName)
+    if not equipmentSets[oldName] then
+        log("error")
+            :print("Loadout ")
+            :print(oldName):as(t.loadout)
+            :print(" not found.")
+            :flush()
+        return
+    end
+    equipmentSets[newName] = equipmentSets[oldName]
+    equipmentSets[oldName] = nil
+
+    local macros = findMacrosContainingSets()[oldName]
+    for _, macro in pairs(macros or {}) do
+        macro.body = macro.body:gsub("-@" .. oldName, "-@" .. newName)
+        EditMacro(macro.index, macro.name, nil, macro.body, 1, 1)
+        log("info")
+            :indent()
+            :print("+ "):print(macro.name):as(t.macro)
+            :flush()
+    end
+
+    log("info")
+        :print("Loadout ")
+        :print(oldName):as(t.loadout)
+        :print(" renamed to ")
+        :print(newName):as(t.loadout)
+        :flush()
 end
 
 local function equipslotCommands(setName)
@@ -308,8 +341,10 @@ end
 -- Function to update all macros with equipment set commands
 local function updateCharacterMacros(...)
     local macros = findMacrosContainingSets()
-    for _, macro in pairs(macros) do
-        updateMacro(macro)
+    for _, macroSet in pairs(macros) do
+        for _, macro in pairs(macroSet) do
+            updateMacro(macro)
+        end
     end
 end
 
@@ -330,6 +365,7 @@ SlashCmdList["LOADOUTS"] = function(msg)
             postExec = {updateCharacterMacros},
             help = "loadoutName"
         },
+        ["rename"] = {fn = renameEquipmentSet, help = "oldName newName"},
         ["clear"] = {
             fn = clearEquipmentSetSlot,
             postExec = {updateCharacterMacros},
