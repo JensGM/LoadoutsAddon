@@ -134,7 +134,8 @@ function Loadouts.Log:indent(levels)
 end
 
 function Loadouts.Log:popIndent(levels)
-    self:indent(-1)
+    local levels = levels or 1
+    self:indent(-levels)
     return self
 end
 

@@ -6,6 +6,7 @@ local t = {}
 t.slot = logger:token("slot", Loadouts.lightBlue)
 t.loadout = logger:token("loadout", Loadouts.teal)
 t.macro = logger:token("macro", Loadouts.blue)
+t.code = logger:token("code", Loadouts.teal)
 t.cmd = logger:token("cmd", Loadouts.teal)
 t.args = logger:token("args", Loadouts.lightBlue)
 
@@ -348,6 +349,31 @@ local function updateCharacterMacros(...)
     end
 end
 
+local function tutorial(...)
+    log("always")
+        :println("Welcome to Loadouts!")
+        :println("To get started, try creating a new loadout with")
+        :indent():println("/loadouts new <loadoutName>"):as(t.cmd):popIndent()
+        :println("Then, add items to the loadout with")
+        :indent():println("/loadouts set <loadoutName> <slotId:>?<itemName>"):as(t.cmd):popIndent()
+        :println("Finally, use the loadout in a macro:")
+        :indent()
+        :println("#showtooltip"):as(t.code)
+        :println("-@<loadoutName>"):as(t.code)
+        :println("-@"):as(t.code)
+        :println("/cast [stance:1/2] Spell Reflection"):as(t.code)
+        :println("")
+        :println("Loadouts will add and manage lines between")
+        :print("the ")
+        :print("-@<loadoutName>"):as(t.code)
+        :print(" and ")
+        :print("-@"):as(t.code)
+        :println(" lines.")
+        :popIndent()
+        :println("For more information, use /loadouts")
+        :flush()
+end
+
 -- Slash commands for loadouts
 SLASH_LOADOUTS1 = "/loadouts"
 SLASH_LOADOUTS2 = "/loadout"
@@ -371,10 +397,12 @@ SlashCmdList["LOADOUTS"] = function(msg)
         ["clear"] = {
             fn = clearEquipmentSetSlot,
             postExec = {updateCharacterMacros},
-            help = "loadoutName slotId"},
+            help = "loadoutName slotId"
+        },
+        ["refreshMacros"] = {fn = updateCharacterMacros, help = ""},
+        ["tutorial"] = {fn = tutorial, help = ""},
         ["_colors"] = {fn = printColors},
         ["_deleteAll"] = {fn = deleteAll},
-        ["_updateMacros"] = {fn = updateCharacterMacros},
     }
 
     local args = {strsplit(" ", msg)}
