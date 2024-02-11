@@ -350,6 +350,8 @@ end
 
 -- Slash commands for loadouts
 SLASH_LOADOUTS1 = "/loadouts"
+SLASH_LOADOUTS2 = "/loadout"
+SLASH_LOADOUTS3 = "/ld"
 SlashCmdList["LOADOUTS"] = function(msg)
     local commands = {
         ["set"] = {
