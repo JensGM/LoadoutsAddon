@@ -124,6 +124,10 @@ function Loadouts.Log:print(...)
 end
 
 function Loadouts.Log:indent(levels)
+    if not self.lastLine then
+        self:newline()
+    end
+
     local levels = levels or 1
     self.lastLine.indentLevel = math.max(0, self.lastLine.indentLevel + levels)
     return self

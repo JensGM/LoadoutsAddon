@@ -5,6 +5,7 @@ local logger = Loadouts.Logger:new()
 local t = {}
 t.slot = logger:token("slot", Loadouts.lightBlue)
 t.loadout = logger:token("loadout", Loadouts.teal)
+t.macro = logger:token("macro", Loadouts.blue)
 t.cmd = logger:token("cmd", Loadouts.teal)
 t.args = logger:token("args", Loadouts.lightBlue)
 
@@ -16,6 +17,10 @@ end
 local function formatItemLink(itemId)
     local itemLink = select(2, GetItemInfo(itemId)) or "|cffffffff|Hitem:" .. itemId .. "|h[Unknown Item]|h|r"
     return itemLink
+end
+
+local function itemName(itemId)
+    return select(1, GetItemInfo(itemId))
 end
 
 -- Function to equip an equipment set
@@ -50,7 +55,7 @@ local function updateEquipmentSetById(loadout, ...)
         local itemSlot, itemName
 
         if snd ~= "" then
-            itemSlot = fst
+            itemSlot = tonumber(fst)
             itemName = snd
         else
             itemName = itemString
@@ -97,13 +102,22 @@ local function updateEquipmentSetById(loadout, ...)
 
         local slotName = equipLocToSlotName[itemEquipLoc]
         local slotNumberString = GetInventorySlotInfo(slotName)
-        local slotNumber = tonumber(slotNumberString)
-        return slotNumber
+
+        return slotNumberString
     end
 
-    local itemSlot, itemName = parseItem(itemArgs)
+    local itemSlotString, itemName = parseItem(itemArgs)
+    if not itemSlotString then
+        itemSlotString = determineItemSlot(itemName)
+    end
+    local itemSlot = tonumber(itemSlotString)
+
     if not itemSlot then
-        itemSlot = determineItemSlot(itemName)
+        log("error")
+            :print("Invalid slot: ")
+            :print(itemSlotString)
+            :flush()
+        return
     end
 
     if equipmentSets[loadout] then
@@ -111,29 +125,47 @@ local function updateEquipmentSetById(loadout, ...)
         local itemLink = formatItemLink(itemName)
         logger:log("info")
             :print(loadout):as(t.loadout)
-            :print(" ", itemSlot)
+            :print("["):print(itemSlot):as(t.slot):print("]")
             :print(" set to ")
             :print(itemLink)
             :flush()
     else
         logger:log("error")
             :print("Invalid loadout name: ")
-            :print(loadout):as(t.slot)
+            :print(loadout):as(t.loadout)
             :flush()
     end
 end
 
 -- Function to clear equipment set slot
 local function clearEquipmentSetSlot(loadout, slot)
-    if equipmentSets[loadout] and equipmentSets[loadout][slot] then
-        equipmentSets[loadout][slot] = nil
-        log("info")
-            :print("Cleared "):print(slot)
-            :print(" from "):print(loadout):as(t.slot)
-            :flush()
-    else
-        log("error"):print("Invalid loadout name or slot not set."):flush()
+    if not loadout then
+        log("error"):print("Loadout not specified."):flush()
+        return
     end
+    if not equipmentSets[loadout] then
+        log("error")
+            :print("Loadout ")
+            :print(loadout):as(t.loadout)
+            :print(" not found.")
+            :flush()
+        return
+    end
+
+    if not slot then
+        log("error")
+            :print("Slot not specified.")
+            :flush()
+        return
+    end
+
+    local slotNumber = tonumber(slot) or slot
+
+    equipmentSets[loadout][slotNumber] = nil
+    log("info")
+        :print("Cleared "):print(slotNumber)
+        :print(" from "):print(loadout):as(t.slot)
+        :flush()
 end
 
 -- Function to show equipment sets
@@ -144,6 +176,14 @@ local function showEquipmentSets()
     for loadout, set in pairs(equipmentSets) do
         l:print(loadout):as(t.loadout):println(":"):indent()
         for slot, itemId in pairs(set) do
+            local as_str = "" .. slot;
+            if not tonumber(slot) then
+                log("error")
+                    :print("Invalid slot: ")
+                    :print(slot)
+                    :flush()
+                set[slot] = nil
+            end
             l:print(slot):as(t.slot)
                 :print(": ")
                 :print(formatItemLink(itemId))
@@ -157,21 +197,37 @@ end
 -- Function to create a new equipment set
 local function createEquipmentSet(setName)
     if equipmentSets[setName] then
-        printMessage("Loadout '" .. setName .. "' already exists.", "ff0000")
+        log("error")
+            :print("Loadout ")
+            :print(setName):as(t.loadout)
+            :print(" already exists.")
+            :flush()
         return
     end
     equipmentSets[setName] = {}
-    printMessage("Loadout '" .. setName .. "' created.", "00ff00")
+    log("info")
+        :print("Loadout ")
+        :print(setName):as(t.loadout)
+        :print(" created.")
+        :flush()
 end
 
 -- Function to remove an equipment set
 local function removeEquipmentSet(setName)
     if not equipmentSets[setName] then
-        printMessage("Loadout '" .. setName .. "' not found.", "ff0000")
+        log("error")
+            :print("Loadout ")
+            :print(setName):as(t.loadout)
+            :print(" not found.")
+            :flush()
         return
     end
     equipmentSets[setName] = nil
-    printMessage("Loadout '" .. setName .. "' removed.", "00ff00")
+    log("info")
+        :print("Loadout ")
+        :print(setName):as(t.loadout)
+        :print(" removed.")
+        :flush()
 end
 
 local function printColors()
@@ -186,17 +242,67 @@ local function printColors()
     l:flush()
 end
 
+local function deleteAll()
+    equipmentSets = {}
+    log("info")
+        :println("All loadouts deleted.")
+        :flush()
+end
+
+-- Function to update all macros with equipment set commands
+local function updateCharacterMacros(...)
+    local pattern = "-@([^\n]+)\n[^@]*-@"
+    local characterMacroStart = 18
+    local characterMacroEnd = 256
+    for i = characterMacroStart, characterMacroEnd do
+        local name, _, body = GetMacroInfo(i)
+        local setName = body and body:match(pattern)
+        if setName then
+            local set = equipmentSets[setName] or {}
+
+            local equipCmds = {"-@" .. setName}
+            for slot, itemId in pairs(set) do
+                local itemName = itemName(itemId)
+                local cmd = "/equipslot " .. slot .. " " .. itemName
+                table.insert(equipCmds, cmd)
+            end
+            table.insert(equipCmds, "-@")
+            local newBody = body:gsub(pattern, table.concat(equipCmds, "\n"))
+            if newBody ~= body then
+                EditMacro(i, name, nil, newBody, 1, 1)
+                log("info")
+                    :indent()
+                    :print("+ "):print(name):as(t.macro)
+                    :flush()
+            end
+        end
+    end
+end
+
 -- Slash commands for loadouts
 SLASH_LOADOUTS1 = "/loadouts"
 SlashCmdList["LOADOUTS"] = function(msg)
     local commands = {
-        ["set"] = {updateEquipmentSetById, "loadoutName (slotId:)?[item name]"},
-        ["equip"] = {equipEquipmentSet, "loadoutName"},
-        ["show"] = {showEquipmentSets, ""},
-        ["new"] = {createEquipmentSet, "loadoutName"},
-        ["rm"] = {removeEquipmentSet, "loadoutName"},
-        ["clear"] = {clearEquipmentSetSlot, "loadoutName slotId"},
-        ["_colors"] = {printColors, nil},
+        ["set"] = {
+            fn = updateEquipmentSetById,
+            postExec = {updateCharacterMacros},
+            help = "loadoutName (slotId:)?[item name]"
+        },
+        ["equip"] = {fn = equipEquipmentSet, help = "loadoutName"},
+        ["show"] = {fn = showEquipmentSets, help = ""},
+        ["new"] = {fn = createEquipmentSet, help = "loadoutName"},
+        ["rm"] = {
+            fn = removeEquipmentSet,
+            postExec = {updateCharacterMacros},
+            help = "loadoutName"
+        },
+        ["clear"] = {
+            fn = clearEquipmentSetSlot,
+            postExec = {updateCharacterMacros},
+            help = "loadoutName slotId"},
+        ["_colors"] = {fn = printColors},
+        ["_deleteAll"] = {fn = deleteAll},
+        ["_updateMacros"] = {fn = updateCharacterMacros},
     }
 
     local args = {strsplit(" ", msg)}
@@ -207,12 +313,11 @@ SlashCmdList["LOADOUTS"] = function(msg)
             :println("Available commands:")
             :indent()
         for cmd, fns in pairs(commands) do
-            local _, help = unpack(fns)
-            if help then
+            if fns.help then
                 l = l:print("/loadouts ")
                     :print(cmd):as(t.cmd)
                     :print(" ")
-                    :println(help)
+                    :println(fns.help)
                     :as(t.args)
             end
         end
@@ -220,9 +325,18 @@ SlashCmdList["LOADOUTS"] = function(msg)
         return
     end
 
-    local fn, _ = unpack(commands[command])
+    local cmd = commands[command]
     table.remove(args, 1)
-    fn(unpack(args))
+
+    if #args == 0 then
+        cmd.fn()
+    else
+        cmd.fn(unpack(args))
+    end
+
+    for _, postExec in ipairs(cmd.postExec or {}) do
+        postExec(unpack(args))
+    end
 end
 
 -- Event handling for saving and loading settings
