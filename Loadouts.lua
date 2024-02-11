@@ -48,17 +48,9 @@ end
 -- Function to update equipment set by ID
 local function updateEquipmentSetById(loadout, ...)
     local itemArgs = {...}
+    local itemString = table.concat(itemArgs, " ")
 
-    local function parseItem(itemArgs)
-        local itemString = table.concat(itemArgs, " ")
-
-        -- if item string is an item link, extract the item ID
-        if itemString:find("|") then
-            local itemId = {strsplit(":", itemString)}
-            itemId = tonumber(itemId[2])
-            return nil, itemId
-        end
-
+    local function parseItem(itemString)
         local pattern = "^([^:]*):?(.*)$"
         local fst, snd = itemString:match(pattern)
         local itemSlot, itemName
@@ -68,6 +60,13 @@ local function updateEquipmentSetById(loadout, ...)
             itemName = snd
         else
             itemName = itemString
+        end
+
+        -- if item string is an item link, extract the item ID
+        if itemName:find("|") then
+            local itemId = {strsplit(":", itemName)}
+            itemId = tonumber(itemId[2])
+            return itemSlot, itemId
         end
 
         local itemNameTrimmed = itemName:gsub("^%[?(.-)%]?$", "%1")
@@ -99,12 +98,13 @@ local function updateEquipmentSetById(loadout, ...)
             ["INVTYPE_RANGEDRIGHT"] = "MainHandSlot",
         }
 
-        local itemSlot, itemName = parseItem(itemArgs)
         local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
         if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
             log("error")
                 :print("Unable to determine slot for ")
                 :print(itemName)
+                :print(" ")
+                :print(itemEquipLoc)
                 :flush()
             return nil
         end
@@ -115,7 +115,8 @@ local function updateEquipmentSetById(loadout, ...)
         return slotNumberString
     end
 
-    local itemSlotString, itemName = parseItem(itemArgs)
+    local itemSlotString, itemName = parseItem(itemString)
+
     if not itemSlotString then
         itemSlotString = determineItemSlot(itemName)
     end
