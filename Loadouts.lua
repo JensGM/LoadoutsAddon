@@ -252,7 +252,7 @@ end
 -- Function to update all macros with equipment set commands
 local function updateCharacterMacros(...)
     local pattern = "-@([^\n]+)\n[^@]*-@"
-    local characterMacroStart = 18
+    local characterMacroStart = 1
     local characterMacroEnd = 256
     for i = characterMacroStart, characterMacroEnd do
         local name, _, body = GetMacroInfo(i)
