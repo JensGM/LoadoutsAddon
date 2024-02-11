@@ -50,6 +50,14 @@ local function updateEquipmentSetById(loadout, ...)
 
     local function parseItem(itemArgs)
         local itemString = table.concat(itemArgs, " ")
+
+        -- if item string is an item link, extract the item ID
+        if itemString:find("|") then
+            local itemId = {strsplit(":", itemString)}
+            itemId = tonumber(itemId[2])
+            return nil, itemId
+        end
+
         local pattern = "^([^:]*):?(.*)$"
         local fst, snd = itemString:match(pattern)
         local itemSlot, itemName
@@ -249,33 +257,59 @@ local function deleteAll()
         :flush()
 end
 
--- Function to update all macros with equipment set commands
-local function updateCharacterMacros(...)
-    local pattern = "-@([^\n]+)\n[^@]*-@"
+local macro_pattern = "-@([^\n]+)\n[^@]*-@"
+
+local function findMacrosContainingSets()
     local characterMacroStart = 1
     local characterMacroEnd = 256
+    local macros = {}
     for i = characterMacroStart, characterMacroEnd do
         local name, _, body = GetMacroInfo(i)
-        local setName = body and body:match(pattern)
+        local setName = body and body:match(macro_pattern)
         if setName then
-            local set = equipmentSets[setName] or {}
-
-            local equipCmds = {"-@" .. setName}
-            for slot, itemId in pairs(set) do
-                local itemName = itemName(itemId)
-                local cmd = "/equipslot " .. slot .. " " .. itemName
-                table.insert(equipCmds, cmd)
-            end
-            table.insert(equipCmds, "-@")
-            local newBody = body:gsub(pattern, table.concat(equipCmds, "\n"))
-            if newBody ~= body then
-                EditMacro(i, name, nil, newBody, 1, 1)
-                log("info")
-                    :indent()
-                    :print("+ "):print(name):as(t.macro)
-                    :flush()
-            end
+            macros[name] = {
+                name = name,
+                index = i,
+                setName = setName,
+                body = body,
+            }
         end
+    end
+    return macros
+end
+
+local function equipslotCommands(setName)
+    local set = equipmentSets[setName] or {}
+
+    local equipCmds = {"-@" .. setName}
+    for slot, itemId in pairs(set or {}) do
+        local itemName = itemName(itemId)
+        local cmd = "/equipslot " .. slot .. " " .. itemName
+        table.insert(equipCmds, cmd)
+    end
+    table.insert(equipCmds, "-@")
+
+    return table.concat(equipCmds, "\n")
+end
+
+local function updateMacro(macro)
+    local setName = macro.setName
+    local equipCmds = equipslotCommands(setName)
+    local newBody = macro.body:gsub(macro_pattern, equipCmds)
+    if newBody ~= macro.body then
+        EditMacro(macro.index, macro.name, nil, newBody, 1, 1)
+        log("info")
+            :indent()
+            :print("+ "):print(macro.name):as(t.macro)
+            :flush()
+    end
+end
+
+-- Function to update all macros with equipment set commands
+local function updateCharacterMacros(...)
+    local macros = findMacrosContainingSets()
+    for _, macro in pairs(macros) do
+        updateMacro(macro)
     end
 end
 
