@@ -51,7 +51,7 @@ local function updateEquipmentSetById(loadout, ...)
     local itemString = table.concat(itemArgs, " ")
 
     local function parseItem(itemString)
-        local pattern = "^([^:]*):?(.*)$"
+        local pattern = "^([^\|:]*):?(.*)$"
         local fst, snd = itemString:match(pattern)
         local itemSlot, itemName
 
