@@ -381,6 +381,18 @@ SLASH_LOADOUTS2 = "/loadout"
 SLASH_LOADOUTS3 = "/ld"
 SlashCmdList["LOADOUTS"] = function(msg)
     local commands = {
+        ["open"] = {
+            fn = function()
+                local fn = Loadouts.UI and Loadouts.UI.ToggleUI
+                if fn then
+                    fn()
+                else
+                    log("error")
+                        :println("Loadouts UI not found.")
+                        :flush()
+                end
+            end,
+        },
         ["set"] = {
             fn = updateEquipmentSetById,
             postExec = {updateCharacterMacros},
@@ -455,3 +467,21 @@ frame:SetScript("OnEvent", function(self, event, arg1, ...)
 end)
 
 log("info"):print("Loadouts loaded, use /loadouts for commands."):flush()
+
+-- API for use in UI
+
+-- Function to get specific equipment set details
+-- function Loadouts.GetEquipmentSet(setName)
+--     return equipmentSets[setName]
+-- end
+
+-- -- Function to get a list of current equipment set names
+-- function Loadouts.GetEquipmentSetNames()
+--     local names = {}
+--     for setName in pairs(equipmentSets) do
+--         table.insert(names, setName)
+--     end
+--     return names
+-- end
+
+_G["Loadouts"] = Loadouts
