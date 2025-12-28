@@ -3,6 +3,9 @@
 ## Author: Jens
 ## Version: 1.0
 ## SavedVariables: Loadouts_SavedSets
+Monad.lua
 Shared.lua
 Logger.lua
+Lib.lua
+Cli.lua
 Loadouts.lua
