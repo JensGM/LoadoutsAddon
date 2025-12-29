@@ -29,6 +29,71 @@ function Loadouts.Lib.itemName(itemId)
     return select(1, GetItemInfo(itemId))
 end
 
+local function parseItem(itemString)
+    local pattern = "^([^\|:]*):?(.*)$"
+    local fst, snd = itemString:match(pattern)
+    local itemSlot, itemName
+
+    if snd ~= "" then
+        itemSlot = tonumber(fst)
+        itemName = snd
+    else
+        itemName = itemString
+    end
+
+    -- if item string is an item link, extract the item ID
+    if itemName:find("|") then
+        local itemId = {strsplit(":", itemName)}
+        itemId = tonumber(itemId[2])
+        return itemSlot, itemId
+    end
+
+    local itemNameTrimmed = itemName:gsub("^%[?(.-)%]?$", "%1")
+    return itemSlot, itemNameTrimmed
+end
+
+function Loadouts.Lib.determineItemSlot(itemName)
+    local equipLocToSlotName = {
+        ["INVTYPE_HEAD"] = "HeadSlot",
+        ["INVTYPE_NECK"] = "NeckSlot",
+        ["INVTYPE_SHOULDER"] = "ShoulderSlot",
+        ["INVTYPE_CHEST"] = "ChestSlot",
+        ["INVTYPE_WAIST"] = "WaistSlot",
+        ["INVTYPE_LEGS"] = "LegsSlot",
+        ["INVTYPE_FEET"] = "FeetSlot",
+        ["INVTYPE_WRIST"] = "WristSlot",
+        ["INVTYPE_HAND"] = "HandsSlot",
+        ["INVTYPE_FINGER"] = "Finger0Slot",
+        ["INVTYPE_TRINKET"] = "Trinket0Slot",
+        ["INVTYPE_CLOAK"] = "BackSlot",
+        ["INVTYPE_WEAPON"] = "MainHandSlot",
+        ["INVTYPE_SHIELD"] = "SecondaryHandSlot",
+        ["INVTYPE_2HWEAPON"] = "MainHandSlot",
+        ["INVTYPE_WEAPONMAINHAND"] = "MainHandSlot",
+        ["INVTYPE_WEAPONOFFHAND"] = "SecondaryHandSlot",
+        ["INVTYPE_HOLDABLE"] = "SecondaryHandSlot",
+        ["INVTYPE_RANGED"] = "MainHandSlot",
+        ["INVTYPE_THROWN"] = "MainHandSlot",
+        ["INVTYPE_RANGEDRIGHT"] = "MainHandSlot",
+    }
+
+    local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
+    if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
+        log("error")
+            :print("Unable to determine slot for ")
+            :print(itemName)
+            :print(" ")
+            :print(itemEquipLoc)
+            :flush()
+        return nil
+    end
+
+    local slotName = equipLocToSlotName[itemEquipLoc]
+    local slotNumberString = GetInventorySlotInfo(slotName)
+
+    return slotNumberString
+end
+
 -- Macros
 
 Loadouts.Lib.macro_pattern = "-@([^\n]+)\n[^@]*-@"
@@ -152,6 +217,10 @@ function Loadouts.Lib.getEquipmentSet(setName)
     return Monad.Result.ok(set)
 end
 
+function Loadouts.Lib.getEquipmentSets()
+    return Loadouts_SavedSets
+end
+
 -- string -> Result<void, string>
 function Loadouts.Lib.equipEquipmentSet(setName)
     local set = Loadouts.Lib.getEquipmentSet(setName)
@@ -209,6 +278,39 @@ function Loadouts.Lib.clearEquipmentSetSlot(setName, slot)
     log("info")
         :print("Cleared "):print(slotNumber)
         :print(" from "):print(setName):as(t.loadout)
+        :flush()
+    return Monad.Result.ok()
+end
+
+function Loadouts.Lib.updateEquipmentSetById(loadout, ...)
+    local itemArgs = {...}
+    local itemString = table.concat(itemArgs, " ")
+
+    local itemSlotString, itemName = parseItem(itemString)
+
+    if not itemSlotString then
+        itemSlotString = Loadouts.Lib.determineItemSlot(itemName)
+    end
+    local itemSlot = tonumber(itemSlotString)
+
+    if not itemSlot then
+        return Monad.Result.err(log("error")
+            :print("Invalid slot: ")
+            :print(itemSlotString)
+        )
+    end
+
+    local set = Loadouts.Lib.getEquipmentSet(loadout)
+    if set.isError then return set end
+    set = set.value
+    
+    set[itemSlot] = itemName
+    local itemLink = Loadouts.Lib.formatItemLink(itemName)
+    log("info")
+        :print(loadout):as(t.loadout)
+        :print("["):print(itemSlot):as(t.slot):print("]")
+        :print(" set to ")
+        :print(itemLink)
         :flush()
     return Monad.Result.ok()
 end

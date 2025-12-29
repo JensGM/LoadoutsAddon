@@ -1,11 +1,15 @@
-## Interface: 11501
+## Interface: 11508
 ## Title: Loadouts
 ## Author: Jens
 ## Version: 1.0
 ## SavedVariables: Loadouts_SavedSets
+
+embeds.xml
+
 Monad.lua
 Shared.lua
 Logger.lua
 Lib.lua
+UI.lua
 Cli.lua
 Loadouts.lua

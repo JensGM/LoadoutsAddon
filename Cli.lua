@@ -12,106 +12,6 @@ local function LogErr(result)
     return result
 end
 
-local function updateEquipmentSetById(loadout, ...)
-    local itemArgs = {...}
-    local itemString = table.concat(itemArgs, " ")
-
-    local function parseItem(itemString)
-        local pattern = "^([^\|:]*):?(.*)$"
-        local fst, snd = itemString:match(pattern)
-        local itemSlot, itemName
-
-        if snd ~= "" then
-            itemSlot = tonumber(fst)
-            itemName = snd
-        else
-            itemName = itemString
-        end
-
-        -- if item string is an item link, extract the item ID
-        if itemName:find("|") then
-            local itemId = {strsplit(":", itemName)}
-            itemId = tonumber(itemId[2])
-            return itemSlot, itemId
-        end
-
-        local itemNameTrimmed = itemName:gsub("^%[?(.-)%]?$", "%1")
-        return itemSlot, itemNameTrimmed
-    end
-
-    local function determineItemSlot(itemName)
-        local equipLocToSlotName = {
-            ["INVTYPE_HEAD"] = "HeadSlot",
-            ["INVTYPE_NECK"] = "NeckSlot",
-            ["INVTYPE_SHOULDER"] = "ShoulderSlot",
-            ["INVTYPE_CHEST"] = "ChestSlot",
-            ["INVTYPE_WAIST"] = "WaistSlot",
-            ["INVTYPE_LEGS"] = "LegsSlot",
-            ["INVTYPE_FEET"] = "FeetSlot",
-            ["INVTYPE_WRIST"] = "WristSlot",
-            ["INVTYPE_HAND"] = "HandsSlot",
-            ["INVTYPE_FINGER"] = "Finger0Slot",
-            ["INVTYPE_TRINKET"] = "Trinket0Slot",
-            ["INVTYPE_CLOAK"] = "BackSlot",
-            ["INVTYPE_WEAPON"] = "MainHandSlot",
-            ["INVTYPE_SHIELD"] = "SecondaryHandSlot",
-            ["INVTYPE_2HWEAPON"] = "MainHandSlot",
-            ["INVTYPE_WEAPONMAINHAND"] = "MainHandSlot",
-            ["INVTYPE_WEAPONOFFHAND"] = "SecondaryHandSlot",
-            ["INVTYPE_HOLDABLE"] = "SecondaryHandSlot",
-            ["INVTYPE_RANGED"] = "MainHandSlot",
-            ["INVTYPE_THROWN"] = "MainHandSlot",
-            ["INVTYPE_RANGEDRIGHT"] = "MainHandSlot",
-        }
-
-        local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
-        if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
-            log("error")
-                :print("Unable to determine slot for ")
-                :print(itemName)
-                :print(" ")
-                :print(itemEquipLoc)
-                :flush()
-            return nil
-        end
-
-        local slotName = equipLocToSlotName[itemEquipLoc]
-        local slotNumberString = GetInventorySlotInfo(slotName)
-
-        return slotNumberString
-    end
-
-    local itemSlotString, itemName = parseItem(itemString)
-
-    if not itemSlotString then
-        itemSlotString = determineItemSlot(itemName)
-    end
-    local itemSlot = tonumber(itemSlotString)
-
-    if not itemSlot then
-        log("error")
-            :print("Invalid slot: ")
-            :print(itemSlotString)
-            :flush()
-        return
-    end
-
-    if Loadouts_SavedSets[loadout] then
-        Loadouts_SavedSets[loadout][itemSlot] = itemName
-        local itemLink = formatItemLink(itemName)
-        log("info")
-            :print(loadout):as(t.loadout)
-            :print("["):print(itemSlot):as(t.slot):print("]")
-            :print(" set to ")
-            :print(itemLink)
-            :flush()
-    else
-        log("error")
-            :print("Invalid loadout name: ")
-            :print(loadout):as(t.loadout)
-            :flush()
-    end
-end
 
 -- Function to show equipment sets
 local function showEquipmentSets()
@@ -219,6 +119,12 @@ local function clearEquipmentSetSlot(loadout, slotId)
     return result
 end
 
+local function updateEquipmentSetById(loadout, ...)
+    local result = Loadouts.Lib.updateEquipmentSetById(loadout, ...)
+    result = LogErr(result)
+    return result
+end
+
 local updateCharacterMacros = Loadouts.Lib.updateCharacterMacros
 
 local printColors = Loadouts.Lib.printColors
@@ -258,7 +164,7 @@ SlashCmdList["LOADOUTS"] = function(msg)
     local commands = {
         ["open"] = {
             fn = function()
-                local fn = Loadouts.UI and Loadouts.UI.ToggleUI
+                local fn = Loadouts.UI and Loadouts.UI.OpenUI
                 if fn then
                     fn()
                 else
