@@ -2,7 +2,7 @@
 ## Title: Loadouts
 ## Author: Jens
 ## Version: 1.0
-## SavedVariables: Loadouts_SavedSets
+## SavedVariablesPerCharacter: Loadouts_SavedSets
 
 embeds.xml
 

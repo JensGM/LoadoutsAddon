@@ -173,6 +173,9 @@ end
 
 -- string -> Result<void, string>
 function Loadouts.Lib.createEquipmentSet(setName)
+    if not Loadouts_SavedSets then
+        Loadouts_SavedSets = {}
+    end
     if Loadouts_SavedSets[setName] then
         return Monad.Result.err(log("error")
             :print("Loadout ")
@@ -206,7 +209,8 @@ end
 
 -- void -> EquipmentSetName | nil
 function Loadouts.Lib.getFirstLoadoutName()
-    for setName, _ in pairs(Loadouts_SavedSets) do
+    local sets = Loadouts.Lib.getEquipmentSets()
+    for setName, _ in pairs(sets) do
         return setName
     end
     return nil
@@ -214,7 +218,7 @@ end
 
 -- string -> Result<EquipmentSet, string>
 function Loadouts.Lib.getEquipmentSet(setName)
-    local set = Loadouts_SavedSets[setName]
+    local set = Loadouts_SavedSets and Loadouts_SavedSets[setName]
     if not set then
         return Monad.Result.err(log("error")
             :print("Loadout ")
@@ -226,7 +230,7 @@ function Loadouts.Lib.getEquipmentSet(setName)
 end
 
 function Loadouts.Lib.getEquipmentSets()
-    return Loadouts_SavedSets
+    return Loadouts_SavedSets or {}
 end
 
 -- string -> Result<void, string>

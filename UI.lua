@@ -41,6 +41,7 @@ local loadoutTree = nil
 
 local LoadoutTreeView = nil
 local LoadoutNameLabel = nil
+local equipLoadoutButton = nil
 local deleteLoadoutButton = nil
 local LoadoutTopBar = nil
 local isCombatLoadoutCheckbox = nil
@@ -394,9 +395,12 @@ end
 local function dressupEquipmentSet(loadoutName)
     assert(modelDressup, "Model dressup not created")
   
-    local set = Loadouts.Lib.getEquipmentSet(loadoutName)
-    assert(set and not set.isError, "Failed to get equipment set for loadout " .. tostring(loadoutName))
-    set = set.value
+    local set = {}
+    if selectLoadout then
+        set = Loadouts.Lib.getEquipmentSet(loadoutName)
+        assert(set and not set.isError, "Failed to get equipment set for loadout " .. tostring(loadoutName))
+        set = set.value
+    end
 
     modelDressup:Undress()
 
@@ -483,9 +487,8 @@ local function createLoadoutNameLabel()
     assert(not LoadoutNameLabel, "Loadout name label already created")
 
     LoadoutNameLabel = AceGUI:Create("EditBox")
-    -- LoadoutNameLabel:SetLabel("Loadout Name")
     LoadoutNameLabel:SetText("")
-    -- LoadoutNameLabel:SetFullWidth(true)
+    LoadoutNameLabel:SetWidth(100)
     LoadoutNameLabel:SetCallback("OnEnterPressed", function(widget, event, text)
         if not selectedLoadout then
             return
@@ -518,9 +521,23 @@ local function createLoadoutTopBar()
 
     LoadoutNameLabel = createLoadoutNameLabel()
 
+    equipLoadoutButton = AceGUI:Create("Button")
+    equipLoadoutButton:SetText("Equip")
+    equipLoadoutButton:SetWidth(100)
+    equipLoadoutButton:SetCallback("OnClick", function()
+        if not selectedLoadout then
+            return
+        end
+        local result = Loadouts.Lib.equipEquipmentSet(selectedLoadout)
+        if result.isError then
+            result.error:flush()
+            return
+        end
+    end)
+
     deleteLoadoutButton = AceGUI:Create("Button")
     deleteLoadoutButton:SetText("Delete")
-    deleteLoadoutButton:SetWidth(100)
+    deleteLoadoutButton:SetWidth(75)
     deleteLoadoutButton:SetCallback("OnClick", function()
         if not selectedLoadout then
             return
@@ -535,6 +552,7 @@ local function createLoadoutTopBar()
     end)
 
     LoadoutTopBar:AddChild(LoadoutNameLabel)
+    LoadoutTopBar:AddChild(equipLoadoutButton)
     LoadoutTopBar:AddChild(deleteLoadoutButton)
 
     LoadoutTreeView:AddChild(LoadoutTopBar)
