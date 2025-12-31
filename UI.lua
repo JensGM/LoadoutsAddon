@@ -138,12 +138,14 @@ local buttonLocations = {
 }
 
 local function getItemsForSlotInInventory(slotLoc)
+    assert(slotLoc, "slotLoc is required")
     local items = {}
 
-    local function maybeAddItem(itemId)
-        if not itemId then return end
+    local function maybeAddItem(itemLink, itemId)
+        assert(itemLink, "itemLink is required")
+        assert(itemId, "itemId is required")
 
-        local name, _, _, _, _, _, _, _, itemEquipLoc, icon = GetItemInfo(itemId)
+        local name, _, _, _, _, _, _, _, itemEquipLoc, icon = GetItemInfo(itemLink)
         if not itemEquipLoc then return end
 
         local itemSlots = Loadouts.Shared.ItemTypeSlots[itemEquipLoc] or {}
@@ -151,6 +153,7 @@ local function getItemsForSlotInInventory(slotLoc)
             table.insert(items, {
                 itemId = itemId,
                 name = name,
+                link = itemLink,
                 icon = icon,
             })
         end
@@ -158,14 +161,26 @@ local function getItemsForSlotInInventory(slotLoc)
 
     -- 1. Equipped inventory (1–19)
     for invSlot = 1, 19 do
-        maybeAddItem(GetInventoryItemID("player", invSlot))
+        local itemLink = GetInventoryItemLink("player", invSlot)
+        if itemLink then
+            local itemId = itemLink and tonumber(itemLink:match("item:(%d+):"))
+            assert(itemId, "itemId is nil for inventory slot " .. invSlot)
+            maybeAddItem(itemLink, itemId)
+        end
     end
 
     -- 2. Bags
     local NUM_TOTAL_EQUIPPED_BAG_SLOTS = BACKPACK_CONTAINER + NUM_BAG_SLOTS + 1
     for bag = BACKPACK_CONTAINER, NUM_TOTAL_EQUIPPED_BAG_SLOTS do
         for slot = 1, C_Container.GetContainerNumSlots(bag) do
-            maybeAddItem(C_Container.GetContainerItemID(bag, slot))
+            local itemInfo = C_Container.GetContainerItemInfo(bag, slot)
+            if itemInfo then
+                local itemLink = itemInfo.hyperlink
+                local itemId = itemInfo.itemID
+                assert(itemLink, "itemLink is nil for bag " .. bag .. " slot " .. slot)
+                assert(itemId, "itemId is nil for bag " .. bag .. " slot " .. slot)
+                maybeAddItem(itemLink, itemId)
+            end
         end
     end
 
@@ -199,6 +214,30 @@ function Loadouts.UI.InventorySlot:new(slotName)
     return self
 end
 
+function Loadouts.UI.InventorySlot:setItem(itemLink, updateLoadout)
+    assert(selectedLoadout, "No loadout selected")
+    assert(self.button, "Button not created for slot " .. self.slotName)
+    assert(itemLink, "itemLink is required")
+    local _, _, _, _, _, _, _, _, _, icon = GetItemInfo(itemLink)
+    assert(icon, "icon is nil for itemLink " .. tostring(itemLink))
+    if updateLoadout then
+        Loadouts.Lib.updateEquipmentSetById(
+            selectedLoadout,
+            self.slotLoc,
+            itemLink
+        )
+        Loadouts.Lib.updateCharacterMacros()
+    end
+    self.button.itemLink = itemLink
+    self.button.icon:SetTexture(icon)
+end
+
+function Loadouts.UI.InventorySlot:clearItem()
+    assert(self.button, "Button not created for slot " .. self.slotName)
+    self.button.itemLink = nil
+    self.button.icon:SetTexture(self.iconPath)
+end
+
 function Loadouts.UI.InventorySlot:_InitializeDropdown()
     local items = getItemsForSlotInInventory(self.slotLoc)
 
@@ -210,8 +249,7 @@ function Loadouts.UI.InventorySlot:_InitializeDropdown()
         info.checked = (self.button.itemId == nil)
 
         info.func = function()
-            self.button.itemId = nil
-            self.button.icon:SetTexture(self.iconPath)
+            self:clearItem()
         end
 
         UIDropDownMenu_AddButton(info, 1)
@@ -223,26 +261,29 @@ function Loadouts.UI.InventorySlot:_InitializeDropdown()
         info.notCheckable = false
         info.text = item.name
         info.icon = item.icon
-        info.checked = (self.button.itemId == item.itemId)
+        info.checked = (self.button.itemLink == item.link)
 
         info.func = function()
-            self.button.itemId = item.itemId
-            self.button.icon:SetTexture(item.icon)
+            assert(item.link, "item.link is nil for itemId " .. tostring(item.itemId))
+            self:setItem(item.link, true)
         end
 
         UIDropDownMenu_AddButton(info, 1)
 
-        -- C_Timer.After(0, function()
-        --     local menuBtn = _G["DropDownList1Button"..i + 1]
-        --     if menuBtn then
-        --         menuBtn:SetScript("OnEnter", function(self)
-        --             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        --             GameTooltip:SetItemByID(item.itemId)
-        --             GameTooltip:Show()
-        --         end)
-        --         menuBtn:SetScript("OnLeave", GameTooltip_Hide)
-        --     end
-        -- end)
+        local enableDropdownTooltip = false
+        if enableDropdownTooltip then
+            C_Timer.After(0, function()
+                local menuBtn = _G["DropDownList1Button"..i + 1]
+                if menuBtn then
+                    menuBtn:SetScript("OnEnter", function(self)
+                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                        GameTooltip:SetHyperlink(item.link)
+                        GameTooltip:Show()
+                    end)
+                    menuBtn:SetScript("OnLeave", GameTooltip_Hide)
+                end
+            end)
+        end
     end
 end
 
@@ -261,7 +302,7 @@ function Loadouts.UI.InventorySlot:createButton()
     self.button = CreateFrame("Button", nil, self.buttonGroup.frame, "ItemButtonTemplate")
     self.button:SetSize(40, 40)
     self.button:SetPoint("CENTER", self.buttonGroup.frame, "CENTER", 0, 0)
-    self.button.itemId = nil
+    self.button.itemLink = nil
     self.button.icon:SetTexture(self.iconPath)
 
     local isCombatLoadout = true
@@ -274,8 +315,8 @@ function Loadouts.UI.InventorySlot:createButton()
     local humanReadableSlot = self.slotNameHuman or self.slotName
     self.button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        if self.itemId then
-            GameTooltip:SetItemByID(self.itemId)
+        if self.itemLink then
+            GameTooltip:SetHyperlink(self.itemLink)
         else
             GameTooltip:SetText("Select an item for " .. humanReadableSlot)
         end
@@ -305,6 +346,32 @@ for _, slotName in ipairs(slotOrder) do
     inventoryButtons[slotName] = Loadouts.UI.InventorySlot:new(slotName)
 end
 assert(Loadouts.Lib.tableLength(inventoryButtons) == 19, "Incorrect number of inventory buttons created: " .. tostring(Loadouts.Lib.tableLength(inventoryButtons)))
+
+local function refreshInventorySlots()
+    if not selectedLoadout then
+        for _, slotName in ipairs(slotOrder) do
+            local slot = inventoryButtons[slotName]
+            slot:clearItem()
+        end
+        return
+    end
+
+    local set = Loadouts.Lib.getEquipmentSet(selectedLoadout)
+    assert(set and not set.isError, "Failed to get equipment set for loadout " .. tostring(selectedLoadout))
+    set = set.value
+
+    for _, slotName in ipairs(slotOrder) do
+        local slot = inventoryButtons[slotName]
+        local itemIdOrLink = set[slot.slotLoc]
+        if itemIdOrLink then
+            local itemLink = Loadouts.Lib.formatItemLink(itemIdOrLink)
+            assert(itemLink, "itemLink is nil for itemId " .. tostring(itemId))
+            slot:setItem(itemLink)
+        else
+            slot:clearItem()
+        end
+    end
+end
 
 local function refreshTreeData()
     treeData = {}
@@ -359,6 +426,8 @@ local function refreshUI()
     loadoutTree:SetSelected(selectedLoadout)
 
     LoadoutTreeView:SetTitle(selectedLoadout or "No Loadout Selected")
+
+    refreshInventorySlots()
 
     dressupEquipmentSet(selectedLoadout)
 end
@@ -612,9 +681,9 @@ function Loadouts.UI.OpenUI()
         initializeUI()
     end
 
+    -- Refresh UI on next tick to allow model to fully initialize
     C_Timer.After(0, function()
         refreshUI()
-        -- dressupEquipmentSet(selectedLoadout)
     end)
     
     Loadouts.UI.show()

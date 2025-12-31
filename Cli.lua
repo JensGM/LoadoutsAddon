@@ -155,6 +155,22 @@ local function tutorial(...)
         :flush()
 end
 
+local function setLogLevel(loglevel)
+    loglevel = strip(loglevel)
+    if not Loadouts.logLevels[loglevel] then
+        log("error")
+            :print("Invalid log level: ")
+            :print(loglevel)
+            :flush()
+        return
+    end
+    Loadouts.Lib.setLogLevel(loglevel)
+    log("info")
+        :print("Log level set to ")
+        :print(loglevel)
+        :flush()
+end
+
 -- CLI Setup
 
 SLASH_LOADOUTS1 = "/loadouts"
@@ -195,6 +211,7 @@ SlashCmdList["LOADOUTS"] = function(msg)
         },
         ["refreshMacros"] = {fn = updateCharacterMacros, help = ""},
         ["tutorial"] = {fn = tutorial, help = ""},
+        ["loglevel"] = {fn = setLogLevel, help = "loglevel"},
         ["_colors"] = {fn = printColors},
         ["_deleteAll"] = {fn = deleteAll},
     }

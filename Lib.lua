@@ -16,6 +16,12 @@ function Loadouts.Lib.log(log_level)
     return logger:log(log_level)
 end
 
+function Loadouts.Lib.setLogLevel(levelName)
+    local level = Loadouts.logLevels[levelName]
+    assert(level, "Invalid log level: " .. tostring(levelName))
+    logger.logLevel = level
+end
+
 local log = Loadouts.Lib.log
 
 -- Helpers
@@ -37,7 +43,11 @@ function Loadouts.Lib.contains(table, element)
     return false
 end
 
-function Loadouts.Lib.formatItemLink(itemId)
+function Loadouts.Lib.formatItemLink(itemIdOrLink)
+    if type(itemIdOrLink) == "string" and itemIdOrLink:find("|c") then
+        return itemIdOrLink
+    end
+    local itemId = tonumber(itemIdOrLink) or itemIdOrLink
     local itemLink = select(2, GetItemInfo(itemId)) or "|cffffffff|Hitem:" .. itemId .. "|h[Unknown Item]|h|r"
     return itemLink
 end
@@ -59,11 +69,11 @@ local function parseItem(itemString)
     end
 
     -- if item string is an item link, extract the item ID
-    if itemName:find("|") then
-        local itemId = {strsplit(":", itemName)}
-        itemId = tonumber(itemId[2])
-        return itemSlot, itemId
-    end
+    -- if itemName:find("|") then
+    --     local itemId = {strsplit(":", itemName)}
+    --     itemId = tonumber(itemId[2])
+    --     return itemSlot, itemId
+    -- end
 
     local itemNameTrimmed = itemName:gsub("^%[?(.-)%]?$", "%1")
     return itemSlot, itemNameTrimmed
