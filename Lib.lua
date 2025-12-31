@@ -20,6 +20,23 @@ local log = Loadouts.Lib.log
 
 -- Helpers
 
+function Loadouts.Lib.tableLength(t)
+    local count = 0
+    for _, _ in pairs(t) do
+        count = count + 1
+    end
+    return count
+end
+
+function Loadouts.Lib.contains(table, element)
+    for _, value in pairs(table) do
+        if value == element then
+            return true
+        end
+    end
+    return false
+end
+
 function Loadouts.Lib.formatItemLink(itemId)
     local itemLink = select(2, GetItemInfo(itemId)) or "|cffffffff|Hitem:" .. itemId .. "|h[Unknown Item]|h|r"
     return itemLink
@@ -53,32 +70,9 @@ local function parseItem(itemString)
 end
 
 function Loadouts.Lib.determineItemSlot(itemName)
-    local equipLocToSlotName = {
-        ["INVTYPE_HEAD"] = "HeadSlot",
-        ["INVTYPE_NECK"] = "NeckSlot",
-        ["INVTYPE_SHOULDER"] = "ShoulderSlot",
-        ["INVTYPE_CHEST"] = "ChestSlot",
-        ["INVTYPE_WAIST"] = "WaistSlot",
-        ["INVTYPE_LEGS"] = "LegsSlot",
-        ["INVTYPE_FEET"] = "FeetSlot",
-        ["INVTYPE_WRIST"] = "WristSlot",
-        ["INVTYPE_HAND"] = "HandsSlot",
-        ["INVTYPE_FINGER"] = "Finger0Slot",
-        ["INVTYPE_TRINKET"] = "Trinket0Slot",
-        ["INVTYPE_CLOAK"] = "BackSlot",
-        ["INVTYPE_WEAPON"] = "MainHandSlot",
-        ["INVTYPE_SHIELD"] = "SecondaryHandSlot",
-        ["INVTYPE_2HWEAPON"] = "MainHandSlot",
-        ["INVTYPE_WEAPONMAINHAND"] = "MainHandSlot",
-        ["INVTYPE_WEAPONOFFHAND"] = "SecondaryHandSlot",
-        ["INVTYPE_HOLDABLE"] = "SecondaryHandSlot",
-        ["INVTYPE_RANGED"] = "MainHandSlot",
-        ["INVTYPE_THROWN"] = "MainHandSlot",
-        ["INVTYPE_RANGEDRIGHT"] = "MainHandSlot",
-    }
-
     local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemName)
-    if not itemEquipLoc or not equipLocToSlotName[itemEquipLoc] then
+    local itemSlotLoc = itemEquipLoc and Loadouts.Shared.ItemTypeSlots[itemEquipLoc]
+    if not itemSlotLoc then
         log("error")
             :print("Unable to determine slot for ")
             :print(itemName)
@@ -87,11 +81,7 @@ function Loadouts.Lib.determineItemSlot(itemName)
             :flush()
         return nil
     end
-
-    local slotName = equipLocToSlotName[itemEquipLoc]
-    local slotNumberString = GetInventorySlotInfo(slotName)
-
-    return slotNumberString
+    return itemSlotLoc
 end
 
 -- Macros
@@ -202,6 +192,14 @@ function Loadouts.Lib.removeEquipmentSet(setName)
         :print(" removed.")
         :flush()
     return Monad.Result.ok()
+end
+
+-- void -> EquipmentSetName | nil
+function Loadouts.Lib.getFirstLoadoutName()
+    for setName, _ in pairs(Loadouts_SavedSets) do
+        return setName
+    end
+    return nil
 end
 
 -- string -> Result<EquipmentSet, string>

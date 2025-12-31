@@ -1,191 +1,427 @@
 Loadouts.UI = Loadouts.UI or {}
 local AceGUI = LibStub("AceGUI-3.0")
 
+--[[
+UI Module for Loadouts Addon
+
+
+Layout:
+
+mainFrame
+--------------------------------------------------------
+| loadoutTree                                          |
+| |-------------|------------------------------------| |
+| | loadoutTree | loadoutTreeView                    | | 
+| | Selection   | |--------------------------------| | |
+| |             | | combatLoadoutCheckbox          | | |
+| |             | |--------------------------------| | |
+| |             | | l |---|------------------|---| r | |
+| |             | | e | H | modeGroup        | h | i | |
+| |             | | f | N | |--------------| | w | g | |
+| |             | | t | S | | modelDressup | | L | h | |
+| |             | |   | B | |              | | F | t | |
+| |             | |   | C | |              | | f |   | |
+| |             | |   | S | |              | | f |   | |
+| |             | |   | T | |              | | t |   | |
+| |             | |   | W | |--------------| | t |   | |
+| |             | |   |---| weapons          |---|   | |
+| |             | |         |--------------|         | |
+| |             | |         | MH    OH   R |         | |
+| |             | |         |--------------|         | |
+| |-------------|------------------------------------| |
+--------------------------------------------------------
+
+-]]
+
+local isIntialized = false
 local isOpen = false
 
-local function getContext()
-    return {
-        ["equipmentSets"] = Loadouts.Lib.getEquipmentSets(),
-    }
-end
+local mainFrame = nil
+local loadoutTree = nil
 
-local function tableLength(t)
-    local count = 0
-    for _, _ in pairs(t) do
-        count = count + 1
-    end
-    return count
-end
+local LoadoutTreeView = nil
+local isCombatLoadoutCheckbox = nil
+local LoadoutView = nil
+local LoadoutCentralColumn = nil
 
-local mainHandItems = {
-    19019, -- Thunderfury
-    17182, -- Sulfuras
+local treeData = nil
+local selectedLoadout = nil
+
+local modelGroup = nil
+local modelDressup = nil
+
+local leftGroup = nil
+local rightGroup = nil
+local weaponGroup = nil
+
+local Location = {
+    LEFT = "LEFT",
+    RIGHT = "RIGHT",
+    WEAPON = "WEAPON",
 }
 
--- local variable to track the selected main-hand item
-local selectedMainHandItem = nil
+local Orientation = {
+    VERTICAL = "VERTICAL",
+    HORIZONTAL = "HORIZONTAL",
+}
 
-local function CreateMainHandButton(parent, onItemSelected)
-    local btn = CreateFrame("Button", "LoadoutMainHandButton", parent, "ItemButtonTemplate")
-    btn:SetSize(40, 40)
+local slotOrder = {
+    "HEADSLOT",
+    "NECKSLOT",
+    "SHOULDERSLOT",
+    "BACKSLOT",
+    "CHESTSLOT",
+    "SHIRTSLOT",
+    "TABARDSLOT",
+    "WRISTSLOT",
 
-    -- safe reference to icon texture
-    btn.icon = btn.IconTexture or btn.icon
-    btn.icon:SetTexture(134400) -- default "?" icon
-    btn.itemID = selectedMainHandItem -- initialize to the selected item
+    "HANDSSLOT",
+    "WAISTSLOT",
+    "LEGSSLOT",
+    "FEETSLOT",
+    "FINGER0SLOT",
+    "FINGER1SLOT",
+    "TRINKET0SLOT",
+    "TRINKET1SLOT",
 
-    -- Dropdown frame
-    local dropdown = CreateFrame("Frame", nil, btn, "UIDropDownMenuTemplate")
+    "MAINHANDSLOT",
+    "SECONDARYHANDSLOT",
+    "RANGEDSLOT",
+}
 
-    local function InitializeDropdown()
-        local info = UIDropDownMenu_CreateInfo()
-        info.notCheckable = false -- show circles
+local activeForCombatLoadout = {
+    ["HEADSLOT"] = false,
+    ["NECKSLOT"] = false,
+    ["SHOULDERSLOT"] = false,
+    ["BACKSLOT"] = false,
+    ["CHESTSLOT"] = false,
+    ["SHIRTSLOT"] = false,
+    ["TABARDSLOT"] = false,
+    ["WRISTSLOT"] = false,
 
-        for i, itemID in ipairs(onItemSelected.items) do
-            local name, _, _, _, _, _, _, _, _, icon = GetItemInfo(itemID)
-            if name then
-                info.text = name
-                info.icon = icon
-                info.checked = (selectedMainHandItem == itemID) -- circle filled if selected
+    ["HANDSSLOT"] = false,
+    ["WAISTSLOT"] = false,
+    ["LEGSSLOT"] = false,
+    ["FEETSLOT"] = false,
+    ["FINGER0SLOT"] = false,
+    ["FINGER1SLOT"] = false,
+    ["TRINKET0SLOT"] = false,
+    ["TRINKET1SLOT"] = false,
 
-                info.func = function()
-                    selectedMainHandItem = itemID
-                    btn.itemID = itemID
-                    btn.icon:SetTexture(icon)
-                    onItemSelected.select(itemID)
-                end
+    ["MAINHANDSLOT"] = true,
+    ["SECONDARYHANDSLOT"] = true,
+    ["RANGEDSLOT"] = true,
+}
 
-                UIDropDownMenu_AddButton(info, 1)
+local buttonLocations = {
+    ["HEADSLOT"] = Location.LEFT,
+    ["NECKSLOT"] = Location.LEFT,
+    ["SHOULDERSLOT"] = Location.LEFT,
+    ["BACKSLOT"] = Location.LEFT,
+    ["CHESTSLOT"] = Location.LEFT,
+    ["SHIRTSLOT"] = Location.LEFT,
+    ["TABARDSLOT"] = Location.LEFT,
+    ["WRISTSLOT"] = Location.LEFT,
 
-                -- Hook tooltip for dropdown item (delayed to ensure button exists)
-                C_Timer.After(0, function()
-                    local menuBtn = _G["DropDownList1Button"..i]
-                    if menuBtn then
-                        menuBtn:SetScript("OnEnter", function(self)
-                            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                            GameTooltip:SetItemByID(itemID)
-                            GameTooltip:Show()
-                        end)
-                        menuBtn:SetScript("OnLeave", GameTooltip_Hide)
-                    end
-                end)
-            end
+    ["HANDSSLOT"] = Location.RIGHT,
+    ["WAISTSLOT"] = Location.RIGHT,
+    ["LEGSSLOT"] = Location.RIGHT,
+    ["FEETSLOT"] = Location.RIGHT,
+    ["FINGER0SLOT"] = Location.RIGHT,
+    ["FINGER1SLOT"] = Location.RIGHT,
+    ["TRINKET0SLOT"] = Location.RIGHT,
+    ["TRINKET1SLOT"] = Location.RIGHT,
+
+    ["MAINHANDSLOT"] = Location.WEAPON,
+    ["SECONDARYHANDSLOT"] = Location.WEAPON,
+    ["RANGEDSLOT"] = Location.WEAPON,
+}
+
+local function getItemsForSlotInInventory(slotLoc)
+    local items = {}
+
+    local function maybeAddItem(itemId)
+        if not itemId then return end
+
+        local name, _, _, _, _, _, _, _, itemEquipLoc, icon = GetItemInfo(itemId)
+        if not itemEquipLoc then return end
+
+        local itemSlots = Loadouts.Shared.ItemTypeSlots[itemEquipLoc] or {}
+        if Loadouts.Lib.contains(itemSlots, slotLoc) then
+            table.insert(items, {
+                itemId = itemId,
+                name = name,
+                icon = icon,
+            })
         end
     end
 
-    -- Show dropdown on click
-    btn:SetScript("OnClick", function()
-        UIDropDownMenu_Initialize(dropdown, InitializeDropdown, "MENU")
-        ToggleDropDownMenu(1, nil, dropdown, btn, 0, 0)
-    end)
+    -- 1. Equipped inventory (1–19)
+    for invSlot = 1, 19 do
+        maybeAddItem(GetInventoryItemID("player", invSlot))
+    end
 
-    -- Tooltip for the main-hand button itself
-    btn:SetScript("OnEnter", function(self)
-        if self.itemID then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetItemByID(self.itemID)
-            GameTooltip:Show()
-        else
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Main Hand")
-            GameTooltip:Show()
+    -- 2. Bags
+    local NUM_TOTAL_EQUIPPED_BAG_SLOTS = BACKPACK_CONTAINER + NUM_BAG_SLOTS + 1
+    for bag = BACKPACK_CONTAINER, NUM_TOTAL_EQUIPPED_BAG_SLOTS do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) do
+            maybeAddItem(C_Container.GetContainerItemID(bag, slot))
         end
-    end)
-    btn:SetScript("OnLeave", GameTooltip_Hide)
+    end
 
-    return btn
+    return items
 end
 
-local function createItemDropdown(parent, items, onSelect)
-    local questionMarkIcon = 134400
-  
-    local btn = CreateFrame("Button", nil, parent, "ItemButtonTemplate")
-    btn:SetSize(40, 40)
-    btn.icon = btn.IconTexture or btn.icon
-    btn.icon:SetTexture(questionMarkIcon)
-    btn.itemID = nil
+Loadouts.UI.InventorySlot = {}
+Loadouts.UI.InventorySlot.__index = Loadouts.UI.InventorySlot
 
-    local dropdown = CreateFrame("Frame", nil, btn, "UIDropDownMenuTemplate")
+function Loadouts.UI.InventorySlot:new(slotName)
+    assert(slotName, "slotName is required")
 
-    local function InitializeDropdown()
+    local _, iconPath, _ = GetInventorySlotInfo(slotName)
+
+    local self = setmetatable({}, Loadouts.UI.InventorySlot)
+    self.slotName = slotName
+    self.slotNameHuman = Loadouts.Shared.HumanSlotNames[slotName]
+    self.slotLoc = Loadouts.Shared.SlotLocs[slotName]
+    self.iconPath = iconPath
+    self.buttonLocation = buttonLocations[slotName]
+    self.buttonGroup = nil
+    self.button = nil
+    self.dropdown = nil
+
+    assert(self.slotName, "slotName not set")
+    assert(self.slotNameHuman, "slotNameHuman not set for slot " .. self.slotName)
+    assert(self.slotLoc, "slotLoc not set for slot " .. self.slotName)
+    assert(self.buttonLocation, "buttonLocation not set for slot " .. self.slotName)
+    assert(iconPath, "Failed to get icon path for slot " .. self.slotName)
+
+    return self
+end
+
+function Loadouts.UI.InventorySlot:_InitializeDropdown()
+    local items = getItemsForSlotInInventory(self.slotLoc)
+
+    do
+        local info = UIDropDownMenu_CreateInfo()
+        info.notCheckable = true
+        info.text = "None"
+        info.icon = nil
+        info.checked = (self.button.itemId == nil)
+
+        info.func = function()
+            self.button.itemId = nil
+            self.button.icon:SetTexture(self.iconPath)
+        end
+
+        UIDropDownMenu_AddButton(info, 1)
+    end
+    
+    for i = 1, #items do
+        local item = items[i]
         local info = UIDropDownMenu_CreateInfo()
         info.notCheckable = false
+        info.text = item.name
+        info.icon = item.icon
+        info.checked = (self.button.itemId == item.itemId)
 
-        for i, itemID in ipairs(items) do
-            local name, _, _, _, _, _, _, _, _, icon = GetItemInfo(itemID)
-            if name then
-                info.text = name
-                info.icon = icon
-                info.checked = (btn.itemID == itemID)
-
-                info.func = function()
-                    btn.itemID = itemID
-                    btn.icon:SetTexture(icon)
-                    onSelect(itemID)
-                end
-
-                UIDropDownMenu_AddButton(info, 1)
-
-                C_Timer.After(0, function()
-                    local menuBtn = _G["DropDownList1Button"..i]
-                    if menuBtn then
-                        menuBtn:SetScript("OnEnter", function(self)
-                            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                            GameTooltip:SetItemByID(itemID)
-                            GameTooltip:Show()
-                        end)
-                        menuBtn:SetScript("OnLeave", GameTooltip_Hide)
-                    end
-                end)
-            end
+        info.func = function()
+            self.button.itemId = item.itemId
+            self.button.icon:SetTexture(item.icon)
         end
+
+        UIDropDownMenu_AddButton(info, 1)
+
+        -- C_Timer.After(0, function()
+        --     local menuBtn = _G["DropDownList1Button"..i + 1]
+        --     if menuBtn then
+        --         menuBtn:SetScript("OnEnter", function(self)
+        --             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        --             GameTooltip:SetItemByID(item.itemId)
+        --             GameTooltip:Show()
+        --         end)
+        --         menuBtn:SetScript("OnLeave", GameTooltip_Hide)
+        --     end
+        -- end)
     end
-
-    btn:SetScript("OnClick", function()
-        UIDropDownMenu_Initialize(dropdown, InitializeDropdown, "MENU")
-        ToggleDropDownMenu(1, nil, dropdown, btn, 0, 0)
-    end)
-
-    btn:SetScript("OnEnter", function(self)
-        if self.itemID then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetItemByID(self.itemID)
-            GameTooltip:Show()
-        else
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText("Select Item")
-            GameTooltip:Show()
-        end
-    end)
-    btn:SetScript("OnLeave", GameTooltip_Hide)
-
-    return btn
 end
 
-local function createCharacterModel()
-    local modelGroup = AceGUI:Create("SimpleGroup")
-    modelGroup:SetLayout("Fill")
+function Loadouts.UI.InventorySlot:createButton()
+    assert(not self.button, "Button already created for slot " .. self.slotName)
+    assert(not self.buttonGroup, "Button group not created for slot " .. self.slotName)
     
-    local model = CreateFrame("DressUpModel", nil, modelGroup.frame)
-    model:SetAllPoints()
-    model:SetUnit("player")
-    model:SetFacing(0.5)
-    model:SetCamera(0)
-    model:SetPosition(0, 0, 0)
-    model:SetCamDistanceScale(1.3)
+    -- AceGUI button group
+    self.buttonGroup = AceGUI:Create("SimpleGroup")
+    self.buttonGroup:SetLayout("Flow")
+    self.buttonGroup:SetWidth(44)
+    self.buttonGroup:SetHeight(44)
+    self.buttonGroup:SetAutoAdjustHeight(false)
 
-    model:EnableMouse(true)
+    -- Item button
+    self.button = CreateFrame("Button", nil, self.buttonGroup.frame, "ItemButtonTemplate")
+    self.button:SetSize(40, 40)
+    self.button:SetPoint("CENTER", self.buttonGroup.frame, "CENTER", 0, 0)
+    self.button.itemId = nil
+    self.button.icon:SetTexture(self.iconPath)
+
+    local isCombatLoadout = true
+    if isCombatLoadout and not activeForCombatLoadout[self.slotName] then
+        self.button:SetAlpha(0.15)
+        self.button:Disable()
+    end
+
+    -- Item tooltip
+    local humanReadableSlot = self.slotNameHuman or self.slotName
+    self.button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if self.itemId then
+            GameTooltip:SetItemByID(self.itemId)
+        else
+            GameTooltip:SetText("Select an item for " .. humanReadableSlot)
+        end
+        GameTooltip:Show()
+    end)
+    self.button:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
+
+    -- Dropdown
+    self.dropdown = CreateFrame("Frame", nil, self.button, "UIDropDownMenuTemplate")
+    self.button:SetScript("OnClick", function()
+        UIDropDownMenu_Initialize(self.dropdown, function()
+            self:_InitializeDropdown()
+        end, "MENU")
+        ToggleDropDownMenu(1, nil, self.dropdown, self.button, 0, 0)
+    end)
+
+    assert(self.buttonGroup, "Button group not created for slot " .. self.slotName)
+    assert(self.button, "Button not created for slot " .. self.slotName)
+    assert(self.dropdown, "Dropdown not created for slot " .. self.slotName)
+end
+
+-- Create empty buttons for all inventory slots
+local inventoryButtons = {}
+for _, slotName in ipairs(slotOrder) do
+    inventoryButtons[slotName] = Loadouts.UI.InventorySlot:new(slotName)
+end
+assert(Loadouts.Lib.tableLength(inventoryButtons) == 19, "Incorrect number of inventory buttons created: " .. tostring(Loadouts.Lib.tableLength(inventoryButtons)))
+
+local function refreshTreeData()
+    treeData = {}
+    local equipmentSets = Loadouts.Lib.getEquipmentSets()
+    for loadoutName, _ in pairs(equipmentSets) do
+        table.insert(treeData, {
+            value = loadoutName,
+            text = loadoutName,
+        })
+    end
+end
+
+local function dressupEquipmentSet(loadoutName)
+    assert(modelDressup, "Model dressup not created")
+  
+    local set = Loadouts.Lib.getEquipmentSet(loadoutName)
+    assert(set and not set.isError, "Failed to get equipment set for loadout " .. tostring(loadoutName))
+    set = set.value
+
+    modelDressup:Undress()
+
+    -- Equip current items first
+    for slotId, _ in pairs(Loadouts.Shared.SlotLocNames) do
+        local itemLink = GetInventoryItemLink("player", slotId)
+        if itemLink then
+            modelDressup:TryOn(itemLink)
+        end
+    end
+    
+    -- Equip loadout items
+    for slot, itemId in pairs(set or {}) do
+        local itemLink = Loadouts.Lib.formatItemLink(itemId)
+
+        -- Off-hand items need special handling
+        local handSlotName = nil
+        if Loadouts.Shared.SlotLocNames[slot] == "SECONDARYHANDSLOT" then
+            handSlotName = "SECONDARYHANDSLOT"
+        end
+
+        if itemLink then
+            modelDressup:TryOn(itemLink, handSlotName)
+        end
+    end
+end
+
+local function refreshUI()
+    assert(loadoutTree, "Loadout tree not created")
+
+    refreshTreeData()
+
+    loadoutTree:SetTree(treeData)
+    loadoutTree:SetSelected(selectedLoadout)
+
+    LoadoutTreeView:SetTitle(selectedLoadout or "No Loadout Selected")
+
+    dressupEquipmentSet(selectedLoadout)
+end
+
+local function onLoadoutSelected(widget, event, selected)
+    selectedLoadout = selected
+    refreshUI()
+end
+
+local function createMainFrame()
+    assert(not mainFrame, "Main frame already created")
+
+    mainFrame = AceGUI:Create("Frame")
+    mainFrame:Hide()
+    mainFrame:SetTitle("Loadouts")
+    mainFrame:SetStatusText("Manage your equipment loadouts")
+    mainFrame:SetLayout("Flow")
+    local treeWidth = 265
+    local modelWidth = 200
+    local buttonWidth = 44 * 2
+    mainFrame:SetWidth(treeWidth + modelWidth + buttonWidth)
+    mainFrame:EnableResize(false)
+    mainFrame:SetCallback("OnClose", function()
+        isOpen = false
+    end)
+end
+
+local function createCombatLoadoutCheckbox()
+    assert(LoadoutTreeView, "Loadout tree view not created")
+    assert(not isCombatLoadoutCheckbox, "Combat loadout checkbox already created")
+
+    isCombatLoadoutCheckbox = AceGUI:Create("CheckBox")
+    isCombatLoadoutCheckbox:SetLabel("Combat Loadout")
+    isCombatLoadoutCheckbox:SetValue(true)
+    isCombatLoadoutCheckbox:SetDisabled(true)
+
+    LoadoutTreeView:AddChild(isCombatLoadoutCheckbox)
+end
+
+local function createModelDressup()
+    assert(modelGroup, "Model group not created")
+    assert(not modelDressup, "Model dressup already created")
+
+    modelDressup = CreateFrame("DressUpModel", nil, modelGroup.frame)
+    modelDressup:SetAllPoints(modelGroup.frame)
+    modelDressup:SetUnit("player")
+    modelDressup:SetFacing(0.5)
+    modelDressup:SetCamera(0)
+    modelDressup:SetPosition(0, 0, 0)
+    modelDressup:SetCamDistanceScale(1.0)
+
+    modelDressup:EnableMouse(true)
 
     local lastX
-    model:SetScript("OnMouseDown", function(self, button)
+    modelDressup:SetScript("OnMouseDown", function(self, button)
         if button ~= "LeftButton" then return end
         lastX = GetCursorPosition()
     end)
-    model:SetScript("OnMouseUp", function(self)
+    modelDressup:SetScript("OnMouseUp", function(self)
         lastX = nil
     end)
 
-    model:SetScript("OnUpdate", function(self)
+    modelDressup:SetScript("OnUpdate", function(self)
         if not lastX then return end
 
         local x = GetCursorPosition()
@@ -195,227 +431,191 @@ local function createCharacterModel()
         self:SetFacing(self:GetFacing() + delta)
     end)
 
-    local function cleanup()
-        if model then
-            model:ClearModel()
-            model:Hide()
-            model:SetParent(nil)
-            model:UnregisterAllEvents()
-            model:SetScript("OnUpdate", nil)
-            model:SetScript("OnMouseDown", nil)
-            model:SetScript("OnMouseUp", nil)
-            model = nil
-        end
-    end
-    
-    return modelGroup, cleanup
+    assert(modelDressup, "Model dressup not created")
 end
 
--- Inspired by the CreateMainHandButton function above
-local function createItemSlotGroup(orientation, slotDefs, selectedSet)
-    local container = AceGUI:Create("SimpleGroup")
-    if orientation == "vertical" then
-        container:SetLayout("List")
-        container:SetWidth(44)
-        container:SetHeight(300)
-    else
-        container:SetLayout("Flow")
-        container:SetFullWidth(true)
-        container:SetHeight(44)
-    end
+local function createModelView()
+    assert(LoadoutCentralColumn, "Loadout central column not created")
+    assert(not modelGroup, "Model group already created")
 
-    local itemButtons = {}
-    for _, slotDef in ipairs(slotDefs) do
-        local slotName = slotDef.slotName
-        local items = slotDef.items
+    modelGroup = AceGUI:Create("SimpleGroup")
+    modelGroup:SetWidth(200)
+    local height = 44 * 7 -- Height for 7 inventory slots, weapons will be below
+    modelGroup:SetHeight(height)
+    modelGroup:SetAutoAdjustHeight(false)
 
-        local function onSelect(itemID)
-            -- selectedSet[slotName] = itemID
-            Loadouts.Lib.log("always")
-                :print("Selected item ID ")
-                :print(tostring(itemID))
-                :print(" for slot ")
-                :print(slotName)
-                :as(t.slot)
-                :flush()
-        end
-
-        local itemButton = createItemDropdown(container.frame, items, onSelect)
-        itemButton:SetPoint("TOP", container.frame, "TOP", 0, 0)
-
-        if selectedSet[slotName] then
-            local _, _, _, _, _, _, _, _, _, icon = GetItemInfo(selectedSet[slotName])
-            if icon then
-                itemButton.icon:SetTexture(icon)
-                itemButton.itemID = selectedSet[slotName]
-            end
-        end
-
-        table.insert(itemButtons, itemButton)
-        Loadouts.Lib.log("always")
-            :print("Created item button for slot ")
-            :print(slotName)
-            :flush()
-        -- container:AddChild(itemButton)
-    end
-    local function cleanup()
-        for _, btn in ipairs(itemButtons) do
-            btn:SetParent(nil)
-        end
-        container:ReleaseChildren()
-    end
-    return container, cleanup
+    createModelDressup()
 end
 
-local function createItemSlots(selectedSet)
-    left, left_cleanup = createItemSlotGroup("vertical", {
-        {slotName = "Head", items = {}},
-        {slotName = "Shoulder", items = {}},
-        {slotName = "Back", items = {}},
-        {slotName = "Chest", items = {}},
-        {slotName = "Wrist", items = {}},
-        {slotName = "Hands", items = {}},
-    }, selectedSet)
+local function createEquipmentSlots()
+    assert(not leftGroup, "Left equipment slot group already created")
+    assert(not rightGroup, "Right equipment slot group already created")
+    assert(not weaponGroup, "Weapon equipment slot group already created")
 
-    right, right_cleanup = createItemSlotGroup("vertical", {
-        {slotName = "Waist", items = {}},
-        {slotName = "Legs", items = {}},
-        {slotName = "Feet", items = {}},
-        {slotName = "Finger0", items = {}},
-        {slotName = "Finger1", items = {}},
-        {slotName = "Trinket0", items = {}},
-        {slotName = "Trinket1", items = {}},
-    }, selectedSet)
+    leftGroup = AceGUI:Create("SimpleGroup")
+    leftGroup:SetLayout("List")
+    leftGroup:SetWidth(44)
+    leftGroup:SetAutoAdjustHeight(true)
 
-    weapons, weapons_cleanup = createItemSlotGroup("horizontal", {
-        {slotName = "MainHand", items = mainHandItems},
-        {slotName = "OffHand", items = {}},
-        {slotName = "Ranged", items = {}},
-    }, selectedSet)
+    rightGroup = AceGUI:Create("SimpleGroup")
+    rightGroup:SetLayout("List")
+    rightGroup:SetWidth(44)
+    rightGroup:SetAutoAdjustHeight(true)
 
-    local function cleanup()
-        left_cleanup()
-        weapons_cleanup()
-        right_cleanup()
+    weaponGroup = AceGUI:Create("SimpleGroup")
+    weaponGroup:SetLayout("Flow")
+    weaponGroup:SetWidth(200)
+    weaponGroup:SetAutoAdjustHeight(true)
+    local pad = AceGUI:Create("SimpleGroup")
+    local padWidth = (200 - 3 * 44) / 2
+    pad:SetWidth(padWidth)
+    pad:SetAutoAdjustHeight(false)
+    weaponGroup:AddChild(pad)
+
+    buttonGroups = {
+        [Location.LEFT] = leftGroup,
+        [Location.RIGHT] = rightGroup,
+        [Location.WEAPON] = weaponGroup,
+    }
+
+    for _, slotName in ipairs(slotOrder) do
+        local slot = inventoryButtons[slotName]
+        slot:createButton()
+        buttonGroups[slot.buttonLocation]:AddChild(slot.buttonGroup)
     end
 
-    return left, weapons, right, cleanup
+    return leftGroup, rightGroup, weaponGroup
 end
 
-local function createLoadoutView(context, selectedSetName)
-    local mainContainer = AceGUI:Create("SimpleGroup")
-    mainContainer:SetLayout("Flow")
-    mainContainer:SetFullWidth(true)
-    mainContainer:SetFullHeight(true)
+local function createLoadoutView()
+    assert(LoadoutTreeView, "Loadout tree view not created")
+    assert(not LoadoutView, "Loadout view already created")
+    assert(not LoadoutCentralColumn, "Loadout central column already created")
 
-    local modelGroup, cleanupModel = createCharacterModel(mainContainer)
-    
-    local selectedSet = context.equipmentSets[selectedSetName]
-    
-    left, weapons, right, cleanupItems = createItemSlots(selectedSet)
-    mainContainer:AddChild(left)
-    mainContainer:AddChild(modelGroup)
-    mainContainer:AddChild(right)
-    mainContainer:AddChild(weapons)
+    LoadoutView = AceGUI:Create("SimpleGroup")
+    LoadoutView:SetLayout("Flow")
+    LoadoutView:SetFullWidth(true)
+    LoadoutView:SetFullHeight(true)
 
-    local function cleanup()
-        cleanupModel()
-        cleanupItems()
-        mainContainer:ReleaseChildren()
-    end
-    
-    return mainContainer, cleanup
+    LoadoutCentralColumn = AceGUI:Create("SimpleGroup")
+    LoadoutCentralColumn:SetLayout("List")
+    LoadoutCentralColumn:SetWidth(200)
+    LoadoutCentralColumn:SetFullHeight(true)
+
+    createModelView()
+    left, right, weapon = createEquipmentSlots()
+
+    LoadoutView:AddChild(left)
+
+    LoadoutCentralColumn:AddChild(modelGroup)
+    LoadoutCentralColumn:AddChild(weapon)
+    LoadoutView:AddChild(LoadoutCentralColumn)
+
+    LoadoutView:AddChild(right)
+
+    LoadoutTreeView:AddChild(LoadoutView)
 end
 
-local function createLoadoutTree(context)
-    local tree = AceGUI:Create("TreeGroup")
-    tree:SetLayout("Fill")
-    tree:SetFullWidth(true)
-    tree:SetFullHeight(true)
+local function createLoadoutTreeView()
+    assert(loadoutTree, "Loadout tree not created")
+    assert(not LoadoutTreeView, "Loadout tree view already created")
 
-    local treeData = {}
-    for setName, _ in pairs(context.equipmentSets) do
-        table.insert(treeData, {
-            value = setName,
-            text = setName,
-        })
+    LoadoutTreeView = AceGUI:Create("InlineGroup")
+    LoadoutTreeView:SetLayout("List")
+    LoadoutTreeView:SetFullWidth(true)
+    LoadoutTreeView:SetFullHeight(true)
+    LoadoutTreeView:SetTitle(selectedLoadout or "No Loadout Selected")
+
+    createCombatLoadoutCheckbox()
+    createLoadoutView()
+
+    loadoutTree:AddChild(LoadoutTreeView)
+end
+
+local function createLoadoutTree()
+    assert(mainFrame, "Main frame not created")
+    assert(not loadoutTree, "Loadout tree already created")
+
+    loadoutTree = AceGUI:Create("TreeGroup")
+    loadoutTree:SetLayout("Fill")
+    loadoutTree:SetFullWidth(true)
+    loadoutTree:SetFullHeight(true)
+
+    refreshTreeData()
+    loadoutTree:SetTree(treeData)
+    loadoutTree:SetCallback("OnGroupSelected", onLoadoutSelected)
+
+    createLoadoutTreeView()
+
+    if not selectedLoadout then
+        selectedLoadout = Loadouts.Lib.getFirstLoadoutName() or nil
     end
-    tree:SetTree(treeData)
+    loadoutTree:SetSelected(selectedLoadout)
 
-    local loadoutView = nil
-    local cleanup = nil
+    mainFrame:AddChild(loadoutTree)
+end
 
-    tree:SetCallback("OnGroupSelected", function(container, event, group)
-        if cleanup then
-            cleanup()
-            cleanup = nil
-        end
-        container:ReleaseChildren()
+local function initializeUI()
+    if isIntialized then
+        return
+    end
 
-        container:SetLayout("Flow")
-        container:SetFullWidth(true)
-        container:SetFullHeight(true)
+    createMainFrame()
+    createLoadoutTree(mainFrame)
+    isIntialized = true
 
-        loadoutView, cleanup = createLoadoutView(context, group)
-        container:AddChild(loadoutView)
-        loadoutView:SetFullWidth(true)
-        loadoutView:SetFullHeight(true)
+    -- validate ui tree
+    assert(mainFrame, "Main frame not created")
 
-        -- local slotBar = AceGUI:Create("SimpleGroup")
-        -- slotBar:SetLayout("Flow")
-        -- slotBar:SetFullWidth(true)
-        -- slotBar:SetHeight(44)
-        -- container:AddChild(slotBar)
+    assert(loadoutTree, "Loadout tree not created")
+    assert(loadoutTree.parent == mainFrame, "Loadout tree not child of main frame")
 
-        -- buttonFrame = CreateMainHandButton(
-        --     slotBar.frame,
-        --     {
-        --         items = mainHandItems,
-        --         select = function(itemID)
-        --             model:ClearModel()
-        --             model:SetUnit("player")
-        --             Loadouts.Lib.log("always"):print("Trying on main-hand item ID " .. tostring(itemID)):flush()
-        --             model:TryOn("item:" .. tostring(itemID))
-        --         end
-        --     }
-        -- )
-        -- buttonFrame:SetPoint("LEFT", slotBar.frame, "LEFT", 0, 0)
-        -- buttonFrame.icon:SetDesaturated(true)
-        -- buttonFrame:Disable()
-    end)
+    assert(LoadoutTreeView, "Loadout tree view not created")
+    assert(LoadoutTreeView.parent == loadoutTree, "Loadout tree view not child of loadout tree")
 
-    tree:SetSelected(context.equipmentSets and next(context.equipmentSets) or nil)
+    assert(LoadoutView, "Loadout view not created")
+    assert(LoadoutView.parent == LoadoutTreeView, "Loadout view not child of loadout tree view")
 
-    tree:SetCallback("OnRelease", function()
-        Loadouts.Lib.log("always")
-            :print("Releasing loadout tree and cleaning up resources.")
-            :flush()
-        if cleanup then
-            cleanup()
-        end
-    end)
+    assert(LoadoutCentralColumn, "Loadout central column not created")
+    assert(LoadoutCentralColumn.parent == LoadoutView, "Loadout central column not child of loadout view")
 
-    return tree
+    assert(modelGroup, "Model group not created")
+    assert(modelGroup.parent == LoadoutCentralColumn, "Model group not child of loadout central column")
+
+    assert(modelDressup, "Model dressup not created")
+    assert(modelDressup:GetParent() == modelGroup.frame, "Model dressup not child of model group frame")
+
+    assert(leftGroup, "Left equipment slot group not created")
+    assert(leftGroup.parent == LoadoutView, "Left equipment slot group not child of loadout view")
+
+    assert(rightGroup, "Right equipment slot group not created")
+    assert(rightGroup.parent == LoadoutView, "Right equipment slot group not child of loadout view")
+
+    assert(weaponGroup, "Weapon equipment slot group not created")
+    assert(weaponGroup.parent == LoadoutCentralColumn, "Weapon equipment slot group not child of loadout central column")
+    
+    assert(isCombatLoadoutCheckbox, "Combat loadout checkbox not created")
+    assert(isCombatLoadoutCheckbox.parent == LoadoutTreeView, "Combat loadout checkbox not child of loadout tree view")
+end
+
+function Loadouts.UI.show()
+    mainFrame:Show()
+    isOpen = true
 end
 
 function Loadouts.UI.OpenUI()
     if isOpen then
         return
     end
-    isOpen = true
 
-    context = getContext()
+    if not isIntialized then
+        initializeUI()
+    end
 
-    local f = AceGUI:Create("Frame")
-    f:SetTitle("Loadouts")
-    f:SetStatusText("Loadout count: " .. tostring(tableLength(context.equipmentSets)))
-    f:SetLayout("Flow")
-
-    local loadoutTree = createLoadoutTree(context)
-    f:AddChild(loadoutTree)
-
-    f:SetCallback("OnClose", function(widget)
-        AceGUI:Release(widget)
-        isOpen = false
+    C_Timer.After(0, function()
+        refreshUI()
+        -- dressupEquipmentSet(selectedLoadout)
     end)
+    
+    Loadouts.UI.show()
 end
