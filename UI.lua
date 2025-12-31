@@ -40,6 +40,9 @@ local mainFrame = nil
 local loadoutTree = nil
 
 local LoadoutTreeView = nil
+local LoadoutNameLabel = nil
+local deleteLoadoutButton = nil
+local LoadoutTopBar = nil
 local isCombatLoadoutCheckbox = nil
 local LoadoutView = nil
 local LoadoutCentralColumn = nil
@@ -375,6 +378,10 @@ end
 
 local function refreshTreeData()
     treeData = {}
+    table.insert(treeData, {
+        value = "Create New Loadout",
+        text = "Create New Loadout",
+    })
     local equipmentSets = Loadouts.Lib.getEquipmentSets()
     for loadoutName, _ in pairs(equipmentSets) do
         table.insert(treeData, {
@@ -425,7 +432,7 @@ local function refreshUI()
     loadoutTree:SetTree(treeData)
     loadoutTree:SetSelected(selectedLoadout)
 
-    LoadoutTreeView:SetTitle(selectedLoadout or "No Loadout Selected")
+    LoadoutNameLabel:SetText(selectedLoadout, "")
 
     refreshInventorySlots()
 
@@ -433,7 +440,24 @@ local function refreshUI()
 end
 
 local function onLoadoutSelected(widget, event, selected)
-    selectedLoadout = selected
+    if selected == "Create New Loadout" then
+        local new_name = "New Loadout"
+        local new_name_attempt = 1
+        existing = Loadouts.Lib.getEquipmentSet(new_name)
+        while not existing.isError do
+            new_name = new_name .. " " .. tostring(new_name_attempt)
+            existing = Loadouts.Lib.getEquipmentSet(new_name)
+            new_name_attempt = new_name_attempt + 1
+        end
+        local result = Loadouts.Lib.createEquipmentSet(new_name)
+        if result.isError then
+            result.error:flush()
+            return
+        end
+        selectedLoadout = new_name
+    else
+        selectedLoadout = selected
+    end
     refreshUI()
 end
 
@@ -453,6 +477,67 @@ local function createMainFrame()
     mainFrame:SetCallback("OnClose", function()
         isOpen = false
     end)
+end
+
+local function createLoadoutNameLabel()
+    assert(not LoadoutNameLabel, "Loadout name label already created")
+
+    LoadoutNameLabel = AceGUI:Create("EditBox")
+    -- LoadoutNameLabel:SetLabel("Loadout Name")
+    LoadoutNameLabel:SetText("")
+    -- LoadoutNameLabel:SetFullWidth(true)
+    LoadoutNameLabel:SetCallback("OnEnterPressed", function(widget, event, text)
+        if not selectedLoadout then
+            return
+        end
+        local newName = text:gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
+        if newName == "" or newName == selectedLoadout then
+            widget:SetText(selectedLoadout)
+            return
+        end
+        local result = Loadouts.Lib.renameEquipmentSet(selectedLoadout, newName)
+        if result.isError then
+            result.error:flush()
+            widget:SetText(selectedLoadout)
+            return
+        end
+        selectedLoadout = newName
+        refreshUI()
+    end)
+
+    return LoadoutNameLabel
+end
+
+local function createLoadoutTopBar()
+    assert(LoadoutTreeView, "Loadout tree view not created")
+    assert(not LoadoutTopBar, "Loadout top bar already created")
+
+    LoadoutTopBar = AceGUI:Create("SimpleGroup")
+    LoadoutTopBar:SetLayout("Flow")
+    LoadoutTopBar:SetFullWidth(true)
+
+    LoadoutNameLabel = createLoadoutNameLabel()
+
+    deleteLoadoutButton = AceGUI:Create("Button")
+    deleteLoadoutButton:SetText("Delete")
+    deleteLoadoutButton:SetWidth(100)
+    deleteLoadoutButton:SetCallback("OnClick", function()
+        if not selectedLoadout then
+            return
+        end
+        local result = Loadouts.Lib.removeEquipmentSet(selectedLoadout)
+        if result.isError then
+            result.error:flush()
+            return
+        end
+        selectedLoadout = Loadouts.Lib.getFirstLoadoutName() or nil
+        refreshUI()
+    end)
+
+    LoadoutTopBar:AddChild(LoadoutNameLabel)
+    LoadoutTopBar:AddChild(deleteLoadoutButton)
+
+    LoadoutTreeView:AddChild(LoadoutTopBar)
 end
 
 local function createCombatLoadoutCheckbox()
@@ -589,12 +674,12 @@ local function createLoadoutTreeView()
     assert(loadoutTree, "Loadout tree not created")
     assert(not LoadoutTreeView, "Loadout tree view already created")
 
-    LoadoutTreeView = AceGUI:Create("InlineGroup")
+    LoadoutTreeView = AceGUI:Create("SimpleGroup")
     LoadoutTreeView:SetLayout("List")
     LoadoutTreeView:SetFullWidth(true)
     LoadoutTreeView:SetFullHeight(true)
-    LoadoutTreeView:SetTitle(selectedLoadout or "No Loadout Selected")
-
+    
+    createLoadoutTopBar()
     createCombatLoadoutCheckbox()
     createLoadoutView()
 
