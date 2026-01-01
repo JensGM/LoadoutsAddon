@@ -396,7 +396,7 @@ local function dressupEquipmentSet(loadoutName)
     assert(modelDressup, "Model dressup not created")
   
     local set = {}
-    if selectLoadout then
+    if selectedLoadout then
         set = Loadouts.Lib.getEquipmentSet(loadoutName)
         assert(set and not set.isError, "Failed to get equipment set for loadout " .. tostring(loadoutName))
         set = set.value
