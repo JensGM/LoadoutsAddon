@@ -2,7 +2,9 @@
 ## Title: Loadouts
 ## Author: Jens
 ## Version: 1.0
+## Dependencies: LibDBIcon-1.0
 ## SavedVariablesPerCharacter: Loadouts_SavedSets
+## SavedVariables: LoadoutsDB
 
 embeds.xml
 
@@ -11,5 +13,6 @@ Shared.lua
 Logger.lua
 Lib.lua
 UI.lua
+MinimapButton.lua
 Cli.lua
 Loadouts.lua

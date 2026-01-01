@@ -445,11 +445,12 @@ end
 
 local function onLoadoutSelected(widget, event, selected)
     if selected == "Create New Loadout" then
-        local new_name = "New Loadout"
+        local new_name_prefix = "New Loadout"
+        local new_name = new_name_prefix
         local new_name_attempt = 1
         existing = Loadouts.Lib.getEquipmentSet(new_name)
         while not existing.isError do
-            new_name = new_name .. " " .. tostring(new_name_attempt)
+            new_name = new_name_prefix .. " " .. tostring(new_name_attempt)
             existing = Loadouts.Lib.getEquipmentSet(new_name)
             new_name_attempt = new_name_attempt + 1
         end
@@ -770,7 +771,7 @@ local function initializeUI()
     assert(isCombatLoadoutCheckbox.parent == LoadoutTreeView, "Combat loadout checkbox not child of loadout tree view")
 end
 
-function Loadouts.UI.show()
+local function show()
     mainFrame:Show()
     isOpen = true
 end
@@ -789,5 +790,5 @@ function Loadouts.UI.OpenUI()
         refreshUI()
     end)
     
-    Loadouts.UI.show()
+    show()
 end
