@@ -327,6 +327,29 @@ function Loadouts.Lib.updateEquipmentSetById(loadout, ...)
     return Monad.Result.ok()
 end
 
+function Loadouts.Lib.removeItemBySlotFromEquipmentSet(loadout, slotId)
+    local slotNumber = tonumber(slotId)
+    if not slotNumber then
+        return Monad.Result.err(log("error")
+            :print("Invalid slot ID: ")
+            :print(slotId)
+        )
+    end
+
+    local set = Loadouts.Lib.getEquipmentSet(loadout)
+    if set.isError then return set end
+    set = set.value
+
+    set[slotNumber] = nil
+
+    log("info")
+        :print("Removed item from ")
+        :print(loadout):as(t.loadout)
+        :print("["):print(slotNumber):as(t.slot):print("]")
+        :flush()
+    return Monad.Result.ok()
+end
+
 -- Utilities
 
 function Loadouts.Lib.printColors()

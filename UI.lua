@@ -236,10 +236,18 @@ function Loadouts.UI.InventorySlot:setItem(itemLink, updateLoadout)
     self.button.icon:SetTexture(icon)
 end
 
-function Loadouts.UI.InventorySlot:clearItem()
+function Loadouts.UI.InventorySlot:clearItem(updateLoadout)
     assert(self.button, "Button not created for slot " .. self.slotName)
     self.button.itemLink = nil
     self.button.icon:SetTexture(self.iconPath)
+
+    if updateLoadout then
+        Loadouts.Lib.removeItemBySlotFromEquipmentSet(
+            selectedLoadout,
+            self.slotLoc
+        )
+        Loadouts.Lib.updateCharacterMacros()
+    end
 end
 
 function Loadouts.UI.InventorySlot:_InitializeDropdown()
@@ -253,7 +261,7 @@ function Loadouts.UI.InventorySlot:_InitializeDropdown()
         info.checked = (self.button.itemId == nil)
 
         info.func = function()
-            self:clearItem()
+            self:clearItem(true)
         end
 
         UIDropDownMenu_AddButton(info, 1)
