@@ -1,4 +1,5 @@
 ## Interface: 11508
+## Interface: 20505
 ## Title: Loadouts
 ## Author: Jens
 ## Version: 1.0
